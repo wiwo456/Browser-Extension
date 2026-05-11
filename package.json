@@ -1,0 +1,13 @@
+{
+  "name": "browser-ext-project",
+  "private": true,
+  "workspaces": [
+    "extension",
+    "platform/backend",
+    "platform/dashboard"
+  ],
+  "scripts": {
+    "build": "npm run build -w extension && npm run build -w platform/dashboard && npm run build -w platform/backend",
+    "typecheck": "npm run typecheck -w extension && npm run typecheck -w platform/dashboard && npm run typecheck -w platform/backend"
+  }
+}

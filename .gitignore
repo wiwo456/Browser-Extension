@@ -1,0 +1,4 @@
+node_modules/
+.DS_Store
+datasets/
+platform/backend/data/domain-category-lookup.json

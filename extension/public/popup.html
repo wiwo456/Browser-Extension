@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Doom2Bloom</title>
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: rgba(24, 24, 27, 0.9);
+        --panel-soft: rgba(39, 39, 42, 0.72);
+        --ink: #fafafa;
+        --muted: #a1a1aa;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --accent: #ffffff;
+        --accent-soft: rgba(255, 255, 255, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
+        padding: 0;
+        width: 360px;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      .shell {
+        position: relative;
+        overflow: hidden;
+        background: var(--panel);
+        min-height: 480px;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 22px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(24px);
+      }
+
+      .shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at top right, rgba(255, 255, 255, 0.1), transparent 28%),
+          radial-gradient(circle at top left, rgba(212, 212, 216, 0.08), transparent 30%);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        position: relative;
+        z-index: 1;
+        margin: 0 0 12px;
+        color: #d4d4d8;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        position: relative;
+        z-index: 1;
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 0.95;
+        letter-spacing: -0.04em;
+      }
+
+      .subtitle {
+        position: relative;
+        z-index: 1;
+        margin: 10px 0 18px;
+        color: var(--muted);
+        line-height: 1.55;
+        max-width: 26ch;
+      }
+
+      .hero {
+        position: relative;
+        z-index: 1;
+        padding: 18px;
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+        border: 1px solid var(--line);
+        backdrop-filter: blur(20px);
+      }
+
+      .hero-label {
+        display: block;
+        margin-bottom: 8px;
+        color: #a1a1aa;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .hero-value {
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        line-height: 1;
+      }
+
+      .hero-note {
+        margin-top: 8px;
+        color: #d4d4d8;
+        font-size: 0.92rem;
+        line-height: 1.45;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .hero-time {
+        margin-top: 10px;
+        color: #71717a;
+        font-size: 0.84rem;
+      }
+
+      .stats {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .stat {
+        padding: 16px;
+        border-radius: 22px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+      }
+
+      .stat-label {
+        display: block;
+        margin-bottom: 10px;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      .stat-note {
+        margin-top: 6px;
+        color: #71717a;
+        font-size: 0.8rem;
+      }
+
+      .actions {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      button {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 13px 16px;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .primary {
+        color: #09090b;
+        background: var(--accent);
+      }
+
+      .primary:hover {
+        background: #e4e4e7;
+      }
+
+      .secondary {
+        color: var(--ink);
+        background: var(--accent-soft);
+        border-color: var(--line-strong);
+      }
+
+      .secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .mono {
+        font-variant-numeric: tabular-nums;
+      }
+
+      p {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <p class="eyebrow">Doom2Bloom</p>
+      <h1>Stay with what matters.</h1>
+      <p class="subtitle">A cleaner extension view for your live browsing state.</p>
+
+      <section class="hero">
+        <span class="hero-label">Current site</span>
+        <div class="hero-value" data-current-site>No active site</div>
+        <p class="hero-note" data-current-url>No active tab URL detected</p>
+        <p class="hero-time mono" data-current-duration>00:00:00</p>
+      </section>
+
+      <section class="stats">
+        <article class="stat">
+          <span class="stat-label">Tracking live</span>
+          <div class="stat-value mono" data-tracking-duration>00:00:00</div>
+          <p class="stat-note">Since detection started</p>
+        </article>
+        <article class="stat">
+          <span class="stat-label">Today total</span>
+          <div class="stat-value mono" data-total-today>00:00:00</div>
+          <p class="stat-note">Active browser time</p>
+        </article>
+      </section>
+
+      <div class="actions">
+        <button class="primary" type="button" data-open-website>Connect to website</button>
+        <button class="secondary" type="button" data-refresh>Refresh session</button>
+      </div>
+    </div>
+    <script type="module" src="../dist/popup/index.js"></script>
+  </body>
+</html>
