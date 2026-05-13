@@ -1,7 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import type { ActivityRecord, CategoryTotal, DailySummary, DailySiteTotal, NormalizedCategory } from "../types/activity";
 import type { TimerRuleWindow } from "../types/focusRules.js";
+import { RuntimeJsonStore } from "./runtimeJsonStore.js";
 
 function startOfTodayTimestamp(now = new Date()): number {
   const date = new Date(now);
@@ -30,22 +29,19 @@ function normalizeCreatedAtTimestamp(createdAt?: string): number {
 
 export class ActivityStore {
   private activities: ActivityRecord[] = [];
+  private readonly store: RuntimeJsonStore<ActivityRecord[]>;
 
-  constructor(private readonly storagePath: string) {}
+  constructor(storagePath: string) {
+    this.store = new RuntimeJsonStore<ActivityRecord[]>("activities", storagePath, []);
+  }
 
   async init(): Promise<void> {
-    try {
-      const file = await readFile(this.storagePath, "utf8");
-      this.activities = JSON.parse(file) as ActivityRecord[];
-    } catch {
-      this.activities = [];
-    }
+    this.activities = await this.store.read();
   }
 
   async add(record: ActivityRecord): Promise<void> {
     this.activities.push(record);
-    await mkdir(dirname(this.storagePath), { recursive: true });
-    await writeFile(this.storagePath, JSON.stringify(this.activities, null, 2), "utf8");
+    await this.store.write(this.activities);
   }
 
   getToday(category?: NormalizedCategory): DailySummary {

@@ -1,6 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import { DEFAULT_FOCUS_RULES } from "../types/focusRules.js";
+import { RuntimeJsonStore } from "./runtimeJsonStore.js";
 function normalizeDomain(domain) {
     return domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 }
@@ -17,17 +16,11 @@ function normalizeCreatedAt(createdAt) {
 }
 export class FocusRulesStore {
     constructor(storagePath) {
-        this.storagePath = storagePath;
         this.rules = DEFAULT_FOCUS_RULES;
+        this.store = new RuntimeJsonStore("focus-rules", storagePath, DEFAULT_FOCUS_RULES);
     }
     async init() {
-        try {
-            const file = await readFile(this.storagePath, "utf8");
-            this.rules = this.normalizeRules(JSON.parse(file));
-        }
-        catch {
-            this.rules = DEFAULT_FOCUS_RULES;
-        }
+        this.rules = this.normalizeRules(await this.store.read());
     }
     get() {
         return {
@@ -44,8 +37,7 @@ export class FocusRulesStore {
     }
     async save(nextRules) {
         this.rules = this.normalizeRules(nextRules);
-        await mkdir(dirname(this.storagePath), { recursive: true });
-        await writeFile(this.storagePath, JSON.stringify(this.rules, null, 2), "utf8");
+        await this.store.write(this.rules);
         return this.get();
     }
     normalizeRules(input) {

@@ -3,6 +3,7 @@ import type { ActivityRecord } from "../types/activity";
 import { ActivityStore } from "../services/activityStore.js";
 import { CategoryLookupService } from "../services/categoryLookup.js";
 import { DiscordService } from "../services/discordService.js";
+import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
 
 interface TrackDependencies {
   store: ActivityStore;
@@ -11,14 +12,19 @@ interface TrackDependencies {
 }
 
 export async function handleTrack(req: IncomingMessage, res: ServerResponse, deps: TrackDependencies): Promise<void> {
-  const chunks: Buffer[] = [];
+  let payload: { activity?: ActivityRecord };
 
-  for await (const chunk of req) {
-    chunks.push(Buffer.from(chunk));
+  try {
+    payload = await readJsonBody<{ activity?: ActivityRecord }>(req);
+  } catch (error) {
+    if (error instanceof BadJsonBodyError) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
+      return;
+    }
+
+    throw error;
   }
-
-  const rawBody = Buffer.concat(chunks).toString("utf8");
-  const payload = JSON.parse(rawBody || "{}") as { activity?: ActivityRecord };
 
   if (!payload.activity) {
     res.writeHead(400, { "Content-Type": "application/json" });

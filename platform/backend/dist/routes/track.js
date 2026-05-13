@@ -1,10 +1,17 @@
+import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
 export async function handleTrack(req, res, deps) {
-    const chunks = [];
-    for await (const chunk of req) {
-        chunks.push(Buffer.from(chunk));
+    let payload;
+    try {
+        payload = await readJsonBody(req);
     }
-    const rawBody = Buffer.concat(chunks).toString("utf8");
-    const payload = JSON.parse(rawBody || "{}");
+    catch (error) {
+        if (error instanceof BadJsonBodyError) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+        throw error;
+    }
     if (!payload.activity) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Missing activity payload" }));

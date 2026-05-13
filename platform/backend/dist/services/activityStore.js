@@ -1,5 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { RuntimeJsonStore } from "./runtimeJsonStore.js";
 function startOfTodayTimestamp(now = new Date()) {
     const date = new Date(now);
     date.setHours(0, 0, 0, 0);
@@ -23,22 +22,15 @@ function normalizeCreatedAtTimestamp(createdAt) {
 }
 export class ActivityStore {
     constructor(storagePath) {
-        this.storagePath = storagePath;
         this.activities = [];
+        this.store = new RuntimeJsonStore("activities", storagePath, []);
     }
     async init() {
-        try {
-            const file = await readFile(this.storagePath, "utf8");
-            this.activities = JSON.parse(file);
-        }
-        catch {
-            this.activities = [];
-        }
+        this.activities = await this.store.read();
     }
     async add(record) {
         this.activities.push(record);
-        await mkdir(dirname(this.storagePath), { recursive: true });
-        await writeFile(this.storagePath, JSON.stringify(this.activities, null, 2), "utf8");
+        await this.store.write(this.activities);
     }
     getToday(category) {
         const activities = this.activities.filter((entry) => {

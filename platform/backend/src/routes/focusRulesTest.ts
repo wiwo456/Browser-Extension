@@ -8,6 +8,7 @@ import type {
   FocusRules,
   TimerRuleWindow
 } from "../types/focusRules.js";
+import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
 
 interface FocusRulesTestDependencies {
   activityStore: ActivityStore;
@@ -183,14 +184,20 @@ export async function handleFocusRulesTest(
   res: ServerResponse,
   deps: FocusRulesTestDependencies
 ): Promise<void> {
-  const chunks: Buffer[] = [];
+  let payload: { url?: string; focusRules?: Partial<FocusRules> };
 
-  for await (const chunk of req) {
-    chunks.push(Buffer.from(chunk));
+  try {
+    payload = await readJsonBody<{ url?: string; focusRules?: Partial<FocusRules> }>(req);
+  } catch (error) {
+    if (error instanceof BadJsonBodyError) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: error.message }));
+      return;
+    }
+
+    throw error;
   }
 
-  const rawBody = Buffer.concat(chunks).toString("utf8");
-  const payload = JSON.parse(rawBody || "{}") as { url?: string; focusRules?: Partial<FocusRules> };
   const inputUrl = payload.url?.trim() ?? "";
 
   if (!inputUrl) {

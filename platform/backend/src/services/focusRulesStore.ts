@@ -1,5 +1,3 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import {
   DEFAULT_FOCUS_RULES,
   type CategoryTimerRule,
@@ -7,6 +5,7 @@ import {
   type FocusRules,
   type TimerRuleWindow
 } from "../types/focusRules.js";
+import { RuntimeJsonStore } from "./runtimeJsonStore.js";
 
 function normalizeDomain(domain: string): string {
   return domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
@@ -28,16 +27,14 @@ function normalizeCreatedAt(createdAt: string | undefined): string {
 
 export class FocusRulesStore {
   private rules: FocusRules = DEFAULT_FOCUS_RULES;
+  private readonly store: RuntimeJsonStore<FocusRules>;
 
-  constructor(private readonly storagePath: string) {}
+  constructor(storagePath: string) {
+    this.store = new RuntimeJsonStore<FocusRules>("focus-rules", storagePath, DEFAULT_FOCUS_RULES);
+  }
 
   async init(): Promise<void> {
-    try {
-      const file = await readFile(this.storagePath, "utf8");
-      this.rules = this.normalizeRules(JSON.parse(file) as Partial<FocusRules>);
-    } catch {
-      this.rules = DEFAULT_FOCUS_RULES;
-    }
+    this.rules = this.normalizeRules(await this.store.read());
   }
 
   get(): FocusRules {
@@ -56,8 +53,7 @@ export class FocusRulesStore {
 
   async save(nextRules: Partial<FocusRules>): Promise<FocusRules> {
     this.rules = this.normalizeRules(nextRules);
-    await mkdir(dirname(this.storagePath), { recursive: true });
-    await writeFile(this.storagePath, JSON.stringify(this.rules, null, 2), "utf8");
+    await this.store.write(this.rules);
     return this.get();
   }
 

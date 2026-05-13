@@ -1,3 +1,4 @@
+import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
 function normalizeDomain(rawValue) {
     return rawValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 }
@@ -115,12 +116,18 @@ function isAlwaysAllowedStudySearchPage(rawUrl) {
     }
 }
 export async function handleFocusRulesTest(req, res, deps) {
-    const chunks = [];
-    for await (const chunk of req) {
-        chunks.push(Buffer.from(chunk));
+    let payload;
+    try {
+        payload = await readJsonBody(req);
     }
-    const rawBody = Buffer.concat(chunks).toString("utf8");
-    const payload = JSON.parse(rawBody || "{}");
+    catch (error) {
+        if (error instanceof BadJsonBodyError) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: error.message }));
+            return;
+        }
+        throw error;
+    }
     const inputUrl = payload.url?.trim() ?? "";
     if (!inputUrl) {
         res.writeHead(400, { "Content-Type": "application/json" });

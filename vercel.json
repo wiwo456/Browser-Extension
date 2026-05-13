@@ -1,0 +1,24 @@
+{
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build -w platform/backend && npm run build -w platform/dashboard",
+  "outputDirectory": "platform/dashboard/dist",
+  "rewrites": [
+    {
+      "source": "/track",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/summary/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/classify",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/focus-rules/:path*",
+      "destination": "/api/index"
+    }
+  ]
+}
