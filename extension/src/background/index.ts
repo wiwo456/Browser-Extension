@@ -1,8 +1,13 @@
 import type { PopupState } from "../types/activity.js";
 import { extractDomain } from "../utils/domain.js";
 import { ActivityTracker } from "./tracker.js";
+import { restartTrackingSession } from "./storage.js";
 
 const tracker = new ActivityTracker();
+
+function ensureSyncAlarm(): void {
+  chrome.alarms.create("sync-current-tab", { periodInMinutes: 0.5 });
+}
 
 async function getActiveTab(): Promise<any | null> {
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -32,13 +37,16 @@ async function getPopupState(): Promise<PopupState> {
 
 void syncCurrentTab();
 
-chrome.alarms.create("sync-current-tab", { periodInMinutes: 1 });
+ensureSyncAlarm();
 
 chrome.runtime.onInstalled.addListener(async () => {
+  ensureSyncAlarm();
   await syncCurrentTab();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  ensureSyncAlarm();
+  await restartTrackingSession();
   await syncCurrentTab();
 });
 

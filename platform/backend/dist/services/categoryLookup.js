@@ -37,6 +37,15 @@ export class CategoryLookupService {
                 };
             }
         }
+        const heuristicMatch = this.matchEducationalHeuristic(normalizedDomain);
+        if (heuristicMatch) {
+            return {
+                domain: normalizedDomain,
+                matchedDomain: normalizedDomain,
+                rawCategory: heuristicMatch.rawCategory,
+                normalizedCategory: heuristicMatch.normalizedCategory
+            };
+        }
         return {
             domain: normalizedDomain,
             matchedDomain: null,
@@ -51,5 +60,19 @@ export class CategoryLookupService {
             candidates.push(parts.slice(index).join("."));
         }
         return candidates;
+    }
+    matchEducationalHeuristic(domain) {
+        if (domain.endsWith(".edu") ||
+            /\.ac\.[a-z]{2}$/.test(domain) ||
+            domain.endsWith(".edu.au") ||
+            domain.includes(".k12.") ||
+            domain.endsWith(".k12.us")) {
+            return {
+                rawCategory: "Education Heuristic",
+                normalizedCategory: "learning",
+                votes: 1
+            };
+        }
+        return null;
     }
 }

@@ -26,3 +26,9 @@ await build({
   entryPoints: ["src/options/index.ts"],
   outfile: "dist/options/index.js"
 });
+
+await build({
+  ...sharedConfig,
+  entryPoints: ["src/stay-focused/index.ts"],
+  outfile: "dist/stay-focused/index.js"
+});

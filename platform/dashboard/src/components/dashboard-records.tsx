@@ -118,9 +118,10 @@ function buildGroupedActivities(activities: ActivityRecord[]): GroupedActivity[]
 interface DashboardRecordsProps {
   onBack: () => void;
   onOpenBlocking: () => void;
+  onOpenStudyMode: () => void;
 }
 
-export default function DashboardRecords({ onBack, onOpenBlocking }: DashboardRecordsProps) {
+export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMode }: DashboardRecordsProps) {
   const [summary, setSummary] = useState<DailySummary>(EMPTY_SUMMARY);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("loading");
   const [activeCategory, setActiveCategory] = useState<NormalizedCategory | "all">("all");
@@ -181,6 +182,11 @@ export default function DashboardRecords({ onBack, onOpenBlocking }: DashboardRe
             <RotateCcw className="h-4 w-4" />
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </GlassButton>
+          <div className="sm:ml-auto">
+            <GlassButton onClick={onOpenStudyMode} size="sm">
+              Study mode
+            </GlassButton>
+          </div>
         </div>
 
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

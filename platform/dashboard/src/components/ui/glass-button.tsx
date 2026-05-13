@@ -6,7 +6,7 @@ function cn(...inputs: (string | undefined | null | false)[]): string {
 }
 
 const glassButtonVariants = cva(
-  "relative isolate all-unset cursor-pointer rounded-full transition-all",
+  "inline-flex items-center justify-center rounded-full border border-white bg-white text-zinc-950 transition-colors hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-55",
   {
     variants: {
       size: {
@@ -23,7 +23,7 @@ const glassButtonVariants = cva(
 );
 
 const glassButtonTextVariants = cva(
-  "glass-button-text relative block select-none tracking-tighter text-white",
+  "relative block select-none tracking-tighter text-zinc-950",
   {
     variants: {
       size: {
@@ -48,28 +48,20 @@ export interface GlassButtonProps
 const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>(
   ({ className, children, size, contentClassName, ...props }, ref) => {
     return (
-      <div
-        className={cn(
-          "glass-button-wrap cursor-pointer rounded-full",
-          className
-        )}
+      <button
+        className={cn(glassButtonVariants({ size }), className)}
+        ref={ref}
+        {...props}
       >
-        <button
-          className={cn("glass-button", glassButtonVariants({ size }))}
-          ref={ref}
-          {...props}
+        <span
+          className={cn(
+            glassButtonTextVariants({ size }),
+            contentClassName
+          )}
         >
-          <span
-            className={cn(
-              glassButtonTextVariants({ size }),
-              contentClassName
-            )}
-          >
-            {children}
-          </span>
-        </button>
-        <div className="glass-button-shadow rounded-full"></div>
-      </div>
+          {children}
+        </span>
+      </button>
     );
   }
 );

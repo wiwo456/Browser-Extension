@@ -4,6 +4,8 @@ import { isSameOrAfterLocalDayStart } from "../utils/time.js";
 const ACTIVITY_KEY = "activityRecords";
 const SNAPSHOT_KEY = "dashboardSnapshot";
 const TRACKING_STARTED_AT_KEY = "trackingStartedAt";
+const TIMER_WARNING_STATE_KEY = "timerWarningState";
+const TEMPORARY_BYPASS_KEY = "temporaryBypassState";
 
 type ChromeStorageResult = Record<string, unknown>;
 
@@ -14,6 +16,45 @@ async function getLocal<T>(key: string, fallback: T): Promise<T> {
 
 async function setLocal(key: string, value: unknown): Promise<void> {
   await chrome.storage.local.set({ [key]: value });
+}
+
+export async function hasShownTimerWarning(warningKey: string): Promise<boolean> {
+  const state = await getLocal<Record<string, true>>(TIMER_WARNING_STATE_KEY, {});
+  return Boolean(state[warningKey]);
+}
+
+export async function markTimerWarningShown(warningKey: string): Promise<void> {
+  const state = await getLocal<Record<string, true>>(TIMER_WARNING_STATE_KEY, {});
+  state[warningKey] = true;
+  await setLocal(TIMER_WARNING_STATE_KEY, state);
+}
+
+export async function setTemporaryBypass(domain: string, durationMs = 10 * 60_000): Promise<void> {
+  const state = await getLocal<Record<string, number>>(TEMPORARY_BYPASS_KEY, {});
+  state[domain] = Date.now() + durationMs;
+  await setLocal(TEMPORARY_BYPASS_KEY, state);
+}
+
+export async function hasTemporaryBypass(domain: string): Promise<boolean> {
+  const state = await getLocal<Record<string, number>>(TEMPORARY_BYPASS_KEY, {});
+  const expiresAt = state[domain];
+  if (!expiresAt) {
+    return false;
+  }
+
+  if (expiresAt <= Date.now()) {
+    delete state[domain];
+    await setLocal(TEMPORARY_BYPASS_KEY, state);
+    return false;
+  }
+
+  return true;
+}
+
+export async function restartTrackingSession(): Promise<string> {
+  const restartedAt = new Date().toISOString();
+  await setLocal(TRACKING_STARTED_AT_KEY, restartedAt);
+  return restartedAt;
 }
 
 export async function getTrackingStartedAt(): Promise<string> {
@@ -42,8 +83,7 @@ export async function updateSnapshot(
 
 export async function saveActivity(activity: ActivityRecord): Promise<ActivityRecord[]> {
   const existing = await getActivities();
-  const todayRecords = existing.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
-  const next = [...todayRecords, activity];
+  const next = [...existing, activity];
   await setLocal(ACTIVITY_KEY, next);
   return next;
 }
@@ -55,7 +95,9 @@ export async function buildSnapshot(
   liveActivity?: ActivityRecord | null
 ): Promise<DashboardSnapshot> {
   const trackingStartedAt = await getTrackingStartedAt();
-  const records = liveActivity ? [...activities, liveActivity] : activities;
+  const todayActivities = activities.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
+  const liveRecords = liveActivity && isSameOrAfterLocalDayStart(liveActivity.startedAt) ? [liveActivity] : [];
+  const records = [...todayActivities, ...liveRecords];
   const totalsMap = new Map<string, DailySiteTotal>();
   const categoryTotalsMap = new Map<NormalizedCategory, CategoryTotal>();
 

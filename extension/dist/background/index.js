@@ -29,6 +29,14 @@ function startOfTodayTimestamp(now = /* @__PURE__ */ new Date()) {
   date.setHours(0, 0, 0, 0);
   return date.getTime();
 }
+function startOfWeekTimestamp(now = /* @__PURE__ */ new Date()) {
+  const date = new Date(now);
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
 function isSameOrAfterLocalDayStart(isoString, now = /* @__PURE__ */ new Date()) {
   const timestamp = new Date(isoString).getTime();
   return Number.isFinite(timestamp) && timestamp >= startOfTodayTimestamp(now);
@@ -38,12 +46,41 @@ function isSameOrAfterLocalDayStart(isoString, now = /* @__PURE__ */ new Date())
 var ACTIVITY_KEY = "activityRecords";
 var SNAPSHOT_KEY = "dashboardSnapshot";
 var TRACKING_STARTED_AT_KEY = "trackingStartedAt";
+var TIMER_WARNING_STATE_KEY = "timerWarningState";
+var TEMPORARY_BYPASS_KEY = "temporaryBypassState";
 async function getLocal(key, fallback) {
   const result = await chrome.storage.local.get(key);
   return result[key] ?? fallback;
 }
 async function setLocal(key, value) {
   await chrome.storage.local.set({ [key]: value });
+}
+async function hasShownTimerWarning(warningKey) {
+  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
+  return Boolean(state[warningKey]);
+}
+async function markTimerWarningShown(warningKey) {
+  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
+  state[warningKey] = true;
+  await setLocal(TIMER_WARNING_STATE_KEY, state);
+}
+async function hasTemporaryBypass(domain) {
+  const state = await getLocal(TEMPORARY_BYPASS_KEY, {});
+  const expiresAt = state[domain];
+  if (!expiresAt) {
+    return false;
+  }
+  if (expiresAt <= Date.now()) {
+    delete state[domain];
+    await setLocal(TEMPORARY_BYPASS_KEY, state);
+    return false;
+  }
+  return true;
+}
+async function restartTrackingSession() {
+  const restartedAt = (/* @__PURE__ */ new Date()).toISOString();
+  await setLocal(TRACKING_STARTED_AT_KEY, restartedAt);
+  return restartedAt;
 }
 async function getTrackingStartedAt() {
   const existing = await getLocal(TRACKING_STARTED_AT_KEY, null);
@@ -63,14 +100,15 @@ async function updateSnapshot(currentDomain, currentTabStartedAt, liveActivity) 
 }
 async function saveActivity(activity) {
   const existing = await getActivities();
-  const todayRecords = existing.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
-  const next = [...todayRecords, activity];
+  const next = [...existing, activity];
   await setLocal(ACTIVITY_KEY, next);
   return next;
 }
 async function buildSnapshot(currentDomain, currentTabStartedAt, activities, liveActivity) {
   const trackingStartedAt = await getTrackingStartedAt();
-  const records = liveActivity ? [...activities, liveActivity] : activities;
+  const todayActivities = activities.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
+  const liveRecords = liveActivity && isSameOrAfterLocalDayStart(liveActivity.startedAt) ? [liveActivity] : [];
+  const records = [...todayActivities, ...liveRecords];
   const totalsMap = /* @__PURE__ */ new Map();
   const categoryTotalsMap = /* @__PURE__ */ new Map();
   for (const entry of records) {
@@ -108,7 +146,14 @@ async function buildSnapshot(currentDomain, currentTabStartedAt, activities, liv
 // src/types/focus-rules.ts
 var DEFAULT_FOCUS_RULES = {
   blockedDomains: [],
-  blockedCategories: []
+  blockedCategories: [],
+  domainTimerRules: [],
+  categoryTimerRules: [],
+  studyMode: {
+    enabled: false,
+    allowedDomains: [],
+    allowedCategories: ["health", "learning", "work"]
+  }
 };
 
 // src/background/api.ts
@@ -189,7 +234,14 @@ async function getFocusRules(forceRefresh = false) {
     const result = await fetchJsonWithFallback("/focus-rules");
     const value = {
       blockedDomains: Array.isArray(result.blockedDomains) ? result.blockedDomains : [],
-      blockedCategories: Array.isArray(result.blockedCategories) ? result.blockedCategories : []
+      blockedCategories: Array.isArray(result.blockedCategories) ? result.blockedCategories : [],
+      domainTimerRules: Array.isArray(result.domainTimerRules) ? result.domainTimerRules : [],
+      categoryTimerRules: Array.isArray(result.categoryTimerRules) ? result.categoryTimerRules : [],
+      studyMode: {
+        enabled: Boolean(result.studyMode?.enabled),
+        allowedDomains: Array.isArray(result.studyMode?.allowedDomains) ? result.studyMode.allowedDomains : [],
+        allowedCategories: Array.isArray(result.studyMode?.allowedCategories) ? result.studyMode.allowedCategories : []
+      }
     };
     focusRulesCache = {
       value,
@@ -217,11 +269,17 @@ var ActivityTracker = class {
     const nextDomain = extractDomain(nextUrl);
     const categoryMatch = await classifyDomain(nextDomain);
     const focusRules = await getFocusRules(true);
-    if (this.isBlocked(nextDomain, categoryMatch.normalizedCategory, focusRules)) {
-      await this.pauseCurrent("hidden");
-      await this.redirectToBlockPage(tab?.id, nextDomain, categoryMatch.normalizedCategory);
-      return this.refreshSnapshot();
+    const activityRecords = await getActivities();
+    const liveActivity = this.buildLiveActivityRecord();
+    if (!await hasTemporaryBypass(nextDomain)) {
+      const blockDecision = this.getBlockDecision(nextUrl, nextDomain, categoryMatch.normalizedCategory, focusRules, activityRecords, liveActivity);
+      if (blockDecision) {
+        await this.pauseCurrent("hidden");
+        await this.redirectToBlockPage(tab?.id, nextUrl, nextDomain, blockDecision);
+        return this.refreshSnapshot();
+      }
     }
+    await this.maybeNotifyTimerWarning(nextDomain, categoryMatch.normalizedCategory, focusRules, activityRecords, liveActivity);
     const shouldRotate = !this.currentSession || this.currentSession.url !== nextUrl || this.currentState !== "active";
     if (shouldRotate) {
       await this.finishCurrentSession(this.currentState);
@@ -305,25 +363,198 @@ var ActivityTracker = class {
       return false;
     }
   }
-  isBlocked(domain, normalizedCategory, focusRules) {
-    if (focusRules.blockedDomains.some((blockedDomain) => this.matchesBlockedDomain(domain, blockedDomain))) {
-      return true;
+  getBlockDecision(rawUrl, domain, normalizedCategory, focusRules, activityRecords, liveActivity) {
+    const studyModeDecision = this.getStudyModeBlockDecision(rawUrl, domain, normalizedCategory, focusRules);
+    if (studyModeDecision) {
+      return studyModeDecision;
     }
-    return Boolean(normalizedCategory && focusRules.blockedCategories.includes(normalizedCategory));
+    if (focusRules.blockedDomains.some((blockedDomain) => this.matchesBlockedDomain(domain, blockedDomain))) {
+      return {
+        reasonCode: "domain",
+        reasonLabel: "Blocked website",
+        reasonDescription: `${domain} is on your blocked websites list.`
+      };
+    }
+    if (normalizedCategory && focusRules.blockedCategories.includes(normalizedCategory)) {
+      return {
+        reasonCode: "category",
+        reasonLabel: "Blocked category",
+        reasonDescription: `${normalizedCategory} is on your blocked categories list.`
+      };
+    }
+    const records = liveActivity ? [...activityRecords, liveActivity] : activityRecords;
+    const matchedDomainTimerRule = focusRules.domainTimerRules.find((rule) => {
+      if (!this.matchesBlockedDomain(domain, rule.domain)) {
+        return false;
+      }
+      return this.getDomainUsageMs(records, rule.window, rule.domain, rule.createdAt) >= rule.limitMinutes * 6e4;
+    });
+    if (matchedDomainTimerRule) {
+      return {
+        reasonCode: "domain-timer",
+        reasonLabel: "Website timer reached",
+        reasonDescription: `${matchedDomainTimerRule.domain} used up its ${matchedDomainTimerRule.limitMinutes}-minute ${matchedDomainTimerRule.window} limit.`
+      };
+    }
+    if (!normalizedCategory) {
+      return null;
+    }
+    const matchedCategoryTimerRule = focusRules.categoryTimerRules.find((rule) => {
+      if (rule.category !== normalizedCategory) {
+        return false;
+      }
+      return this.getCategoryUsageMs(records, rule.window, normalizedCategory, rule.createdAt) >= rule.limitMinutes * 6e4;
+    });
+    if (matchedCategoryTimerRule) {
+      return {
+        reasonCode: "category-timer",
+        reasonLabel: "Category timer reached",
+        reasonDescription: `${matchedCategoryTimerRule.category} used up its ${matchedCategoryTimerRule.limitMinutes}-minute ${matchedCategoryTimerRule.window} limit.`
+      };
+    }
+    return null;
   }
   matchesBlockedDomain(domain, blockedDomain) {
     return domain === blockedDomain || domain.endsWith(`.${blockedDomain}`);
   }
-  async redirectToBlockPage(tabId, domain, category) {
+  getStudyModeBlockDecision(rawUrl, domain, normalizedCategory, focusRules) {
+    if (!focusRules.studyMode.enabled) {
+      return null;
+    }
+    if (this.isAlwaysAllowedStudyDomain(domain) || this.isAlwaysAllowedStudySearchPage(rawUrl)) {
+      return null;
+    }
+    const allowedDomain = focusRules.studyMode.allowedDomains.some((allowedDomain2) => this.matchesBlockedDomain(domain, allowedDomain2));
+    const allowedCategory = Boolean(
+      normalizedCategory && focusRules.studyMode.allowedCategories.includes(normalizedCategory)
+    );
+    if (allowedDomain || allowedCategory) {
+      return null;
+    }
+    return {
+      reasonCode: "study-mode",
+      reasonLabel: "Study mode block",
+      reasonDescription: `${domain} is not part of your current study-mode allowlist, so Doom2Bloom blocked it immediately.`
+    };
+  }
+  isAlwaysAllowedStudyDomain(domain) {
+    return domain === "youtube.com" || domain.endsWith(".youtube.com") || domain === "edu" || domain.endsWith(".edu");
+  }
+  isAlwaysAllowedStudySearchPage(rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+      const path = url.pathname;
+      if (hostname === "duckduckgo.com") {
+        return path === "/";
+      }
+      if (hostname === "search.brave.com") {
+        return path === "/" || path === "/search";
+      }
+      if (hostname === "bing.com" || hostname === "search.yahoo.com" || hostname === "yahoo.com") {
+        return path === "/" || path === "/search";
+      }
+      if (hostname === "google.com" || /^google\.[a-z.]+$/.test(hostname)) {
+        return path === "/" || path === "/search";
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+  async maybeNotifyTimerWarning(domain, normalizedCategory, focusRules, activityRecords, liveActivity) {
+    const records = liveActivity ? [...activityRecords, liveActivity] : activityRecords;
+    const candidate = this.getTimerWarningCandidate(domain, normalizedCategory, focusRules, records);
+    if (!candidate) {
+      return;
+    }
+    if (await hasShownTimerWarning(candidate.warningKey)) {
+      return;
+    }
+    await chrome.notifications.create(`timer-warning:${candidate.warningKey}`, {
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("public/icons/icon128.png"),
+      title: candidate.title,
+      message: candidate.message
+    });
+    await markTimerWarningShown(candidate.warningKey);
+  }
+  getTimerWarningCandidate(domain, normalizedCategory, focusRules, records) {
+    const warningThresholdMs = 5 * 6e4;
+    for (const rule of focusRules.domainTimerRules) {
+      if (!this.matchesBlockedDomain(domain, rule.domain)) {
+        continue;
+      }
+      const usageMs = this.getDomainUsageMs(records, rule.window, rule.domain, rule.createdAt);
+      const remainingMs = rule.limitMinutes * 6e4 - usageMs;
+      if (remainingMs <= 0 || remainingMs > warningThresholdMs) {
+        continue;
+      }
+      return {
+        warningKey: `domain:${rule.domain}:${rule.window}:${rule.createdAt}`,
+        title: "5 minutes left",
+        message: `You have about 5 minutes left on ${rule.domain} before Doom2Bloom blocks it.`
+      };
+    }
+    if (!normalizedCategory) {
+      return null;
+    }
+    for (const rule of focusRules.categoryTimerRules) {
+      if (rule.category !== normalizedCategory) {
+        continue;
+      }
+      const usageMs = this.getCategoryUsageMs(records, rule.window, normalizedCategory, rule.createdAt);
+      const remainingMs = rule.limitMinutes * 6e4 - usageMs;
+      if (remainingMs <= 0 || remainingMs > warningThresholdMs) {
+        continue;
+      }
+      return {
+        warningKey: `category:${rule.category}:${rule.window}:${rule.createdAt}`,
+        title: "5 minutes left",
+        message: `You have about 5 minutes left in ${rule.category} before Doom2Bloom blocks it.`
+      };
+    }
+    return null;
+  }
+  getDomainUsageMs(records, window, blockedDomain, createdAt) {
+    return records.filter(
+      (record) => this.isRecordInWindow(record, window, createdAt) && this.matchesBlockedDomain(record.domain, blockedDomain)
+    ).reduce((total, record) => total + record.durationMs, 0);
+  }
+  getCategoryUsageMs(records, window, normalizedCategory, createdAt) {
+    return records.filter((record) => this.isRecordInWindow(record, window, createdAt) && record.normalizedCategory === normalizedCategory).reduce((total, record) => total + record.durationMs, 0);
+  }
+  isRecordInWindow(record, window, createdAt) {
+    const startedAt = new Date(record.startedAt).getTime();
+    const createdAtTimestamp = new Date(createdAt).getTime();
+    if (!Number.isFinite(startedAt)) {
+      return false;
+    }
+    const windowStart = window === "forever" ? 0 : window === "day" ? startOfTodayTimestamp() : startOfWeekTimestamp();
+    const effectiveStart = Number.isFinite(createdAtTimestamp) ? Math.max(windowStart, createdAtTimestamp) : windowStart;
+    if (window === "forever") {
+      return startedAt >= effectiveStart;
+    }
+    if (window === "day") {
+      return startedAt >= effectiveStart;
+    }
+    return startedAt >= effectiveStart;
+  }
+  async redirectToBlockPage(tabId, originalUrl, domain, blockDecision) {
     if (!tabId) {
       return;
     }
     const blockedUrl = new URL(chrome.runtime.getURL("public/stay-focused.html"));
+    if (originalUrl) {
+      blockedUrl.searchParams.set("url", originalUrl);
+    }
     if (domain) {
       blockedUrl.searchParams.set("domain", domain);
     }
-    if (category) {
-      blockedUrl.searchParams.set("category", category);
+    if (blockDecision) {
+      blockedUrl.searchParams.set("reason", blockDecision.reasonCode);
+      blockedUrl.searchParams.set("reasonLabel", blockDecision.reasonLabel);
+      blockedUrl.searchParams.set("reasonDescription", blockDecision.reasonDescription);
     }
     await chrome.tabs.update(tabId, { url: blockedUrl.toString() });
   }
@@ -331,6 +562,9 @@ var ActivityTracker = class {
 
 // src/background/index.ts
 var tracker = new ActivityTracker();
+function ensureSyncAlarm() {
+  chrome.alarms.create("sync-current-tab", { periodInMinutes: 0.5 });
+}
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   return tabs[0] ?? null;
@@ -353,11 +587,14 @@ async function getPopupState() {
   };
 }
 void syncCurrentTab();
-chrome.alarms.create("sync-current-tab", { periodInMinutes: 1 });
+ensureSyncAlarm();
 chrome.runtime.onInstalled.addListener(async () => {
+  ensureSyncAlarm();
   await syncCurrentTab();
 });
 chrome.runtime.onStartup.addListener(async () => {
+  ensureSyncAlarm();
+  await restartTrackingSession();
   await syncCurrentTab();
 });
 chrome.tabs.onActivated.addListener(async () => {

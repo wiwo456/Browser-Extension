@@ -10,6 +10,15 @@ export function startOfTodayTimestamp(now = new Date()): number {
   return date.getTime();
 }
 
+export function startOfWeekTimestamp(now = new Date()): number {
+  const date = new Date(now);
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
 export function isSameOrAfterLocalDayStart(isoString: string, now = new Date()): boolean {
   const timestamp = new Date(isoString).getTime();
   return Number.isFinite(timestamp) && timestamp >= startOfTodayTimestamp(now);

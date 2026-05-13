@@ -96,7 +96,14 @@ export async function getFocusRules(forceRefresh = false): Promise<FocusRules> {
     const result = await fetchJsonWithFallback<Partial<FocusRules>>("/focus-rules");
     const value: FocusRules = {
       blockedDomains: Array.isArray(result.blockedDomains) ? result.blockedDomains : [],
-      blockedCategories: Array.isArray(result.blockedCategories) ? result.blockedCategories : []
+      blockedCategories: Array.isArray(result.blockedCategories) ? result.blockedCategories : [],
+      domainTimerRules: Array.isArray(result.domainTimerRules) ? result.domainTimerRules : [],
+      categoryTimerRules: Array.isArray(result.categoryTimerRules) ? result.categoryTimerRules : [],
+      studyMode: {
+        enabled: Boolean(result.studyMode?.enabled),
+        allowedDomains: Array.isArray(result.studyMode?.allowedDomains) ? result.studyMode.allowedDomains : [],
+        allowedCategories: Array.isArray(result.studyMode?.allowedCategories) ? result.studyMode.allowedCategories : []
+      }
     };
 
     focusRulesCache = {

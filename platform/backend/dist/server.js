@@ -7,6 +7,7 @@ import { DiscordService } from "./services/discordService.js";
 import { FocusRulesStore } from "./services/focusRulesStore.js";
 import { handleClassify } from "./routes/classify.js";
 import { handleGetFocusRules, handleUpdateFocusRules } from "./routes/focusRules.js";
+import { handleFocusRulesTest } from "./routes/focusRulesTest.js";
 import { handleTrack } from "./routes/track.js";
 import { handleSummary } from "./routes/summary.js";
 const store = new ActivityStore(join(process.cwd(), "data", "activities.json"));
@@ -72,7 +73,7 @@ async function serveDashboardFile(pathname, res) {
 function setCors(res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
 }
 async function route(req, res) {
     setCors(res);
@@ -99,6 +100,10 @@ async function route(req, res) {
     }
     if (req.url === "/focus-rules" && req.method === "PUT") {
         await handleUpdateFocusRules(req, res, { focusRulesStore });
+        return;
+    }
+    if (req.url === "/focus-rules/test" && req.method === "POST") {
+        await handleFocusRulesTest(req, res, { activityStore: store, categoryLookup, focusRulesStore });
         return;
     }
     if (req.method === "GET" && req.url) {

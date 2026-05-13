@@ -9,6 +9,18 @@ function isSameOrAfterLocalDayStart(isoString, now = new Date()) {
     const timestamp = new Date(isoString).getTime();
     return Number.isFinite(timestamp) && timestamp >= startOfTodayTimestamp(now);
 }
+function startOfWeekTimestamp(now = new Date()) {
+    const date = new Date(now);
+    const day = date.getDay();
+    const diff = (day + 6) % 7;
+    date.setDate(date.getDate() - diff);
+    date.setHours(0, 0, 0, 0);
+    return date.getTime();
+}
+function normalizeCreatedAtTimestamp(createdAt) {
+    const timestamp = createdAt ? new Date(createdAt).getTime() : Number.NaN;
+    return Number.isFinite(timestamp) ? timestamp : 0;
+}
 export class ActivityStore {
     constructor(storagePath) {
         this.storagePath = storagePath;
@@ -62,5 +74,37 @@ export class ActivityStore {
             topCategories: [...categoryTotals.values()].sort((a, b) => b.totalMs - a.totalMs),
             activities: activities.slice().reverse()
         };
+    }
+    getDomainUsage(window, blockedDomain, createdAt) {
+        return this.activities
+            .filter((entry) => this.isInWindow(entry.startedAt, window, createdAt) && this.matchesBlockedDomain(entry.domain, blockedDomain))
+            .reduce((sum, entry) => sum + entry.durationMs, 0);
+    }
+    getCategoryUsage(window, category, createdAt) {
+        return this.activities
+            .filter((entry) => this.isInWindow(entry.startedAt, window, createdAt) && entry.normalizedCategory === category)
+            .reduce((sum, entry) => sum + entry.durationMs, 0);
+    }
+    isInWindow(isoString, window, createdAt) {
+        const timestamp = new Date(isoString).getTime();
+        if (!Number.isFinite(timestamp)) {
+            return false;
+        }
+        const windowStart = window === "forever"
+            ? 0
+            : window === "day"
+                ? startOfTodayTimestamp()
+                : startOfWeekTimestamp();
+        const effectiveStart = Math.max(windowStart, normalizeCreatedAtTimestamp(createdAt));
+        if (window === "day") {
+            return timestamp >= effectiveStart;
+        }
+        if (window === "week") {
+            return timestamp >= effectiveStart;
+        }
+        return timestamp >= effectiveStart;
+    }
+    matchesBlockedDomain(domain, blockedDomain) {
+        return domain === blockedDomain || domain.endsWith(`.${blockedDomain}`);
     }
 }

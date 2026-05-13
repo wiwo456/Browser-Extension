@@ -1,7 +1,15 @@
 {
   "blockedDomains": [
-    "instagram.com",
-    "youtube.com"
+    "instagram.com"
   ],
-  "blockedCategories": []
+  "blockedCategories": [
+    "adult"
+  ],
+  "domainTimerRules": [],
+  "categoryTimerRules": [],
+  "studyMode": {
+    "enabled": false,
+    "allowedDomains": [],
+    "allowedCategories": []
+  }
 }
