@@ -187,6 +187,18 @@
         font-size: 0.9rem;
       }
 
+      .countdown {
+        margin-top: 16px;
+        display: none;
+        width: fit-content;
+        border-radius: 999px;
+        border: 1px solid rgba(248, 113, 113, 0.28);
+        background: rgba(127, 29, 29, 0.24);
+        padding: 10px 14px;
+        color: #fecaca;
+        font-size: 0.92rem;
+      }
+
       .tv-wrap {
         padding: 20px;
         display: flex;
@@ -306,6 +318,7 @@
           <button class="button secondary" type="button" data-back>Go back</button>
         </div>
         <p class="hint" data-hint>Visiting anyway gives this website a one-time temporary bypass for the selected number of minutes.</p>
+        <div class="countdown" data-countdown aria-live="polite"></div>
       </section>
 
       <section class="panel tv-wrap">

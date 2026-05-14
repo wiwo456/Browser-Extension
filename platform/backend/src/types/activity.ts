@@ -24,6 +24,14 @@ export interface ActivityRecord {
   normalizedCategory?: NormalizedCategory | null;
 }
 
+export interface BrowserSessionRecord {
+  startedAt: string;
+  endedAt: string;
+  durationMs: number;
+  source: "extension";
+  endReason: "browser-closed" | "startup-recovery" | "manual-reset";
+}
+
 export interface DailySiteTotal {
   domain: string;
   totalMs: number;
@@ -38,6 +46,8 @@ export interface CategoryTotal {
 
 export interface DailySummary {
   totalMs: number;
+  lastBrowserSession: BrowserSessionRecord | null;
+  recentBrowserSessions: BrowserSessionRecord[];
   topSites: DailySiteTotal[];
   topCategories: CategoryTotal[];
   activities: ActivityRecord[];

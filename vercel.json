@@ -9,6 +9,10 @@
       "destination": "/api/index"
     },
     {
+      "source": "/browser-session",
+      "destination": "/api/index"
+    },
+    {
       "source": "/summary/:path*",
       "destination": "/api/index"
     },

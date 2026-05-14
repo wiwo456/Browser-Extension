@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, Clock3, Globe, RotateCcw, TimerReset } from "lucide-react";
-import type { ActivityRecord, DailySummary, NormalizedCategory } from "@/types/activity";
+import type { ActivityRecord, BrowserSessionRecord, DailySummary, NormalizedCategory } from "@/types/activity";
+import DashboardBeamsShell from "@/components/ui/dashboard-beams-shell";
 import { GlassButton } from "@/components/ui/glass-button";
 import { getApiUrl } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
@@ -33,6 +34,8 @@ const CATEGORY_TONES: Record<NormalizedCategory, string> = {
 
 const EMPTY_SUMMARY: DailySummary = {
   totalMs: 0,
+  lastBrowserSession: null,
+  recentBrowserSessions: [],
   topSites: [],
   topCategories: [],
   activities: []
@@ -41,10 +44,36 @@ const EMPTY_SUMMARY: DailySummary = {
 function normalizeSummary(data: Partial<DailySummary> | null | undefined): DailySummary {
   return {
     totalMs: data?.totalMs ?? 0,
+    lastBrowserSession: data?.lastBrowserSession ?? null,
+    recentBrowserSessions: Array.isArray(data?.recentBrowserSessions) ? data.recentBrowserSessions : [],
     topSites: Array.isArray(data?.topSites) ? data.topSites : [],
     topCategories: Array.isArray(data?.topCategories) ? data.topCategories : [],
     activities: Array.isArray(data?.activities) ? data.activities : []
   };
+}
+
+function formatBrowserSessionLabel(session: BrowserSessionRecord | null): string {
+  if (!session) {
+    return "No completed browser session yet";
+  }
+
+  return `${new Date(session.startedAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  })} to ${new Date(session.endedAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  })}`;
+}
+
+function formatBrowserSessionRange(session: BrowserSessionRecord): string {
+  return `${new Date(session.startedAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  })} - ${new Date(session.endedAt).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit"
+  })}`;
 }
 
 function formatCategoryLabel(category?: NormalizedCategory | null): string {
@@ -127,6 +156,7 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
   const [activeCategory, setActiveCategory] = useState<NormalizedCategory | "all">("all");
   const [refreshTick, setRefreshTick] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showRecentSessions, setShowRecentSessions] = useState(false);
   const groupedActivities = buildGroupedActivities(summary.activities);
 
   useEffect(() => {
@@ -166,9 +196,23 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
     };
   }, [activeCategory, refreshTick]);
 
+  useEffect(() => {
+    if (!showRecentSessions) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowRecentSessions(false);
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [showRecentSessions]);
+
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <DashboardBeamsShell>
+      <main className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <GlassButton onClick={onBack} size="sm" contentClassName="flex items-center gap-2 text-zinc-100">
             <ArrowLeft className="h-4 w-4" />
@@ -252,21 +296,50 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
           </div>
         </section>
 
-        <div className="mb-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <Clock3 className="mb-4 h-5 w-5 text-zinc-300" />
-            <div className="text-3xl font-semibold">{formatDuration(summary.totalMs)}</div>
-            <div className="mt-2 text-sm text-zinc-400">Total tracked today</div>
+        <div className="mx-auto mb-8 grid max-w-5xl gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-3.5 backdrop-blur-xl">
+            <Clock3 className="mb-3 h-4 w-4 text-zinc-300" />
+            <div className="text-lg font-semibold">{formatDuration(summary.totalMs)}</div>
+            <div className="mt-1 text-xs text-zinc-400">Total tracked today</div>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <Globe className="mb-4 h-5 w-5 text-zinc-300" />
-            <div className="text-3xl font-semibold">{summary.topCategories.length}</div>
-            <div className="mt-2 text-sm text-zinc-400">Categories detected</div>
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-3.5 backdrop-blur-xl">
+            <Globe className="mb-3 h-4 w-4 text-zinc-300" />
+            <div className="text-lg font-semibold">{summary.topCategories.length}</div>
+            <div className="mt-1 text-xs text-zinc-400">Categories detected</div>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <TimerReset className="mb-4 h-5 w-5 text-zinc-300" />
-            <div className="text-3xl font-semibold">{summary.activities.length}</div>
-            <div className="mt-2 text-sm text-zinc-400">Tracked sessions</div>
+          <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-3.5 backdrop-blur-xl">
+            <TimerReset className="mb-3 h-4 w-4 text-zinc-300" />
+            <div className="text-lg font-semibold">{summary.activities.length}</div>
+            <div className="mt-1 text-xs text-zinc-400">Tracked sessions</div>
+          </div>
+          <div className="relative rounded-[1.5rem] border border-white/10 bg-white/5 p-3.5 backdrop-blur-xl">
+            <RotateCcw className="mb-3 h-4 w-4 text-zinc-300" />
+            <div className="text-lg font-semibold">
+              {summary.lastBrowserSession ? formatDuration(summary.lastBrowserSession.durationMs) : "0m"}
+            </div>
+            <div className="mt-1 text-xs text-zinc-400">Last browser session</div>
+            <div className="mt-2 text-xs text-zinc-500">{formatBrowserSessionLabel(summary.lastBrowserSession)}</div>
+            <button
+              type="button"
+              onClick={() => setShowRecentSessions((current) => !current)}
+              className="mt-3 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-wide text-zinc-300 transition hover:bg-black/30"
+            >
+              Last 4 sessions
+            </button>
+            {showRecentSessions && summary.recentBrowserSessions.length > 0 ? (
+              <div className="absolute left-6 right-6 top-[calc(100%-0.5rem)] z-10 rounded-2xl border border-white/10 bg-zinc-900/95 p-3 shadow-2xl backdrop-blur-xl">
+                <div className="space-y-2">
+                  {summary.recentBrowserSessions.slice(0, 4).map((session) => (
+                    <div
+                      key={`${session.startedAt}:${session.endedAt}`}
+                      className="rounded-xl border border-white/8 bg-white/5 px-3 py-2 text-sm text-zinc-200"
+                    >
+                      {formatBrowserSessionRange(session)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -349,7 +422,7 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
             </div>
           </section>
         </div>
-      </div>
-    </main>
+      </main>
+    </DashboardBeamsShell>
   );
 }

@@ -9,6 +9,7 @@ import type {
   TimerRuleWindow
 } from "../types/focusRules.js";
 import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
+import { isAlwaysAllowedStudyDomain } from "../utils/studyMode.js";
 
 interface FocusRulesTestDependencies {
   activityStore: ActivityStore;
@@ -145,10 +146,6 @@ function findMatchedBlockedDomain(domain: string, blockedDomains: string[]): str
   }
 
   return null;
-}
-
-function isAlwaysAllowedStudyDomain(domain: string): boolean {
-  return domain === "youtube.com" || domain.endsWith(".youtube.com") || domain === "edu" || domain.endsWith(".edu");
 }
 
 function isAlwaysAllowedStudySearchPage(rawUrl: string): boolean {

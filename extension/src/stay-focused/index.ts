@@ -20,6 +20,46 @@ const visitButton = getRequiredElement<HTMLButtonElement>("[data-visit]");
 const bypassMinutesSelect = getRequiredElement<HTMLSelectElement>("[data-bypass-minutes]");
 const backButton = getRequiredElement<HTMLButtonElement>("[data-back]");
 const hintElement = getRequiredElement<HTMLElement>("[data-hint]");
+const countdownElement = getRequiredElement<HTMLElement>("[data-countdown]");
+
+function setCountdown(secondsRemaining: number): void {
+  if (!countdownElement) {
+    return;
+  }
+
+  countdownElement.style.display = "inline-flex";
+  countdownElement.textContent = `Closing this tab in ${secondsRemaining} second${secondsRemaining === 1 ? "" : "s"}.`;
+}
+
+async function closeBlockedTab(): Promise<void> {
+  try {
+    const currentTab = await chrome.tabs.getCurrent();
+    if (typeof currentTab?.id === "number") {
+      await chrome.tabs.remove(currentTab.id);
+      return;
+    }
+  } catch {
+    // Fall through to window-close fallback below.
+  }
+
+  window.close();
+}
+
+function startAutoCloseCountdown(seconds: number): void {
+  let remaining = seconds;
+  setCountdown(remaining);
+
+  const intervalId = window.setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      window.clearInterval(intervalId);
+      void closeBlockedTab();
+      return;
+    }
+
+    setCountdown(remaining);
+  }, 1000);
+}
 
 if (domainElement && domain) {
   domainElement.textContent = domain;
@@ -40,10 +80,8 @@ async function setupVisitAction(): Promise<void> {
 
   if (reasonCode === "study-mode") {
     visitRow.style.display = "none";
-    hintElement.textContent = "Study mode does not allow bypass. This tab will close automatically in 5 seconds.";
-    window.setTimeout(() => {
-      window.close();
-    }, 5000);
+    hintElement.textContent = "Study mode is active, so this page cannot use a temporary bypass.";
+    startAutoCloseCountdown(5);
     return;
   }
 
@@ -78,6 +116,6 @@ void setupVisitAction();
 
 if (backButton) {
   backButton.addEventListener("click", async () => {
-    window.close();
+    await closeBlockedTab();
   });
 }

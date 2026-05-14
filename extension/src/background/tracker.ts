@@ -1,6 +1,7 @@
 import type { ActivityRecord, ActivityState, DashboardSnapshot } from "../types/activity.js";
 import type { FocusRules, TimerRuleWindow } from "../types/focus-rules.js";
 import { extractDomain } from "../utils/domain.js";
+import { isAlwaysAllowedStudyDomain } from "../utils/study-mode.js";
 import { startOfTodayTimestamp, startOfWeekTimestamp } from "../utils/time.js";
 import {
   buildSnapshot,
@@ -268,10 +269,6 @@ export class ActivityTracker {
       reasonLabel: "Study mode block",
       reasonDescription: `${domain} is not part of your current study-mode allowlist, so Doom2Bloom blocked it immediately.`
     };
-  }
-
-  private isAlwaysAllowedStudyDomain(domain: string): boolean {
-    return domain === "youtube.com" || domain.endsWith(".youtube.com") || domain === "edu" || domain.endsWith(".edu");
   }
 
   private isAlwaysAllowedStudySearchPage(rawUrl: string): boolean {

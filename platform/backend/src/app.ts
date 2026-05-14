@@ -6,6 +6,7 @@ import { ActivityStore } from "./services/activityStore.js";
 import { CategoryLookupService } from "./services/categoryLookup.js";
 import { DiscordService } from "./services/discordService.js";
 import { FocusRulesStore } from "./services/focusRulesStore.js";
+import { handleTrackBrowserSession } from "./routes/browserSession.js";
 import { handleClassify } from "./routes/classify.js";
 import { handleGetFocusRules, handleUpdateFocusRules } from "./routes/focusRules.js";
 import { handleFocusRulesTest } from "./routes/focusRulesTest.js";
@@ -112,6 +113,11 @@ export async function handleAppRequest(
 
   if (req.url === "/track" && req.method === "POST") {
     await handleTrack(req, res, { store, categoryLookup, discord });
+    return;
+  }
+
+  if (req.url === "/browser-session" && req.method === "POST") {
+    await handleTrackBrowserSession(req, res, { store });
     return;
   }
 

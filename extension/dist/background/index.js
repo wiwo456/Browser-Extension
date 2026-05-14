@@ -23,126 +23,6 @@ function extractDomain(rawUrl) {
   }
 }
 
-// src/utils/time.ts
-function startOfTodayTimestamp(now = /* @__PURE__ */ new Date()) {
-  const date = new Date(now);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-}
-function startOfWeekTimestamp(now = /* @__PURE__ */ new Date()) {
-  const date = new Date(now);
-  const day = date.getDay();
-  const diff = (day + 6) % 7;
-  date.setDate(date.getDate() - diff);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
-}
-function isSameOrAfterLocalDayStart(isoString, now = /* @__PURE__ */ new Date()) {
-  const timestamp = new Date(isoString).getTime();
-  return Number.isFinite(timestamp) && timestamp >= startOfTodayTimestamp(now);
-}
-
-// src/background/storage.ts
-var ACTIVITY_KEY = "activityRecords";
-var SNAPSHOT_KEY = "dashboardSnapshot";
-var TRACKING_STARTED_AT_KEY = "trackingStartedAt";
-var TIMER_WARNING_STATE_KEY = "timerWarningState";
-var TEMPORARY_BYPASS_KEY = "temporaryBypassState";
-async function getLocal(key, fallback) {
-  const result = await chrome.storage.local.get(key);
-  return result[key] ?? fallback;
-}
-async function setLocal(key, value) {
-  await chrome.storage.local.set({ [key]: value });
-}
-async function hasShownTimerWarning(warningKey) {
-  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
-  return Boolean(state[warningKey]);
-}
-async function markTimerWarningShown(warningKey) {
-  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
-  state[warningKey] = true;
-  await setLocal(TIMER_WARNING_STATE_KEY, state);
-}
-async function hasTemporaryBypass(domain) {
-  const state = await getLocal(TEMPORARY_BYPASS_KEY, {});
-  const expiresAt = state[domain];
-  if (!expiresAt) {
-    return false;
-  }
-  if (expiresAt <= Date.now()) {
-    delete state[domain];
-    await setLocal(TEMPORARY_BYPASS_KEY, state);
-    return false;
-  }
-  return true;
-}
-async function restartTrackingSession() {
-  const restartedAt = (/* @__PURE__ */ new Date()).toISOString();
-  await setLocal(TRACKING_STARTED_AT_KEY, restartedAt);
-  return restartedAt;
-}
-async function getTrackingStartedAt() {
-  const existing = await getLocal(TRACKING_STARTED_AT_KEY, null);
-  if (existing) {
-    return existing;
-  }
-  const createdAt = (/* @__PURE__ */ new Date()).toISOString();
-  await setLocal(TRACKING_STARTED_AT_KEY, createdAt);
-  return createdAt;
-}
-async function getActivities() {
-  return getLocal(ACTIVITY_KEY, []);
-}
-async function updateSnapshot(currentDomain, currentTabStartedAt, liveActivity) {
-  const activities = await getActivities();
-  return buildSnapshot(currentDomain, currentTabStartedAt, activities, liveActivity);
-}
-async function saveActivity(activity) {
-  const existing = await getActivities();
-  const next = [...existing, activity];
-  await setLocal(ACTIVITY_KEY, next);
-  return next;
-}
-async function buildSnapshot(currentDomain, currentTabStartedAt, activities, liveActivity) {
-  const trackingStartedAt = await getTrackingStartedAt();
-  const todayActivities = activities.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
-  const liveRecords = liveActivity && isSameOrAfterLocalDayStart(liveActivity.startedAt) ? [liveActivity] : [];
-  const records = [...todayActivities, ...liveRecords];
-  const totalsMap = /* @__PURE__ */ new Map();
-  const categoryTotalsMap = /* @__PURE__ */ new Map();
-  for (const entry of records) {
-    const current = totalsMap.get(entry.domain) ?? { domain: entry.domain, totalMs: 0, visits: 0 };
-    current.totalMs += entry.durationMs;
-    current.visits += 1;
-    totalsMap.set(entry.domain, current);
-    if (entry.normalizedCategory) {
-      const categoryCurrent = categoryTotalsMap.get(entry.normalizedCategory) ?? {
-        normalizedCategory: entry.normalizedCategory,
-        totalMs: 0,
-        visits: 0
-      };
-      categoryCurrent.totalMs += entry.durationMs;
-      categoryCurrent.visits += 1;
-      categoryTotalsMap.set(entry.normalizedCategory, categoryCurrent);
-    }
-  }
-  const topSites = [...totalsMap.values()].sort((a, b) => b.totalMs - a.totalMs).slice(0, 5);
-  const topCategories = [...categoryTotalsMap.values()].sort((a, b) => b.totalMs - a.totalMs);
-  const totalMs = records.reduce((sum, entry) => sum + entry.durationMs, 0);
-  const snapshot = {
-    totalMs,
-    currentDomain,
-    currentTabStartedAt,
-    trackingStartedAt,
-    topSites,
-    topCategories,
-    activities: records.slice().reverse()
-  };
-  await setLocal(SNAPSHOT_KEY, snapshot);
-  return snapshot;
-}
-
 // src/types/focus-rules.ts
 var DEFAULT_FOCUS_RULES = {
   blockedDomains: [],
@@ -210,6 +90,19 @@ async function sendActivity(activity) {
     console.warn("Failed to send activity to backend", error);
   }
 }
+async function sendBrowserSession(session) {
+  try {
+    await fetchJsonWithFallback("/browser-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ session })
+    });
+  } catch (error) {
+    console.warn("Failed to send browser session to backend", error);
+  }
+}
 async function classifyDomain(domain) {
   try {
     const result = await fetchJsonWithFallback(`/classify?domain=${encodeURIComponent(domain)}`);
@@ -252,6 +145,183 @@ async function getFocusRules(forceRefresh = false) {
     console.warn("Failed to load focus rules", error);
     return DEFAULT_FOCUS_RULES;
   }
+}
+
+// src/utils/time.ts
+function startOfTodayTimestamp(now = /* @__PURE__ */ new Date()) {
+  const date = new Date(now);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+function startOfWeekTimestamp(now = /* @__PURE__ */ new Date()) {
+  const date = new Date(now);
+  const day = date.getDay();
+  const diff = (day + 6) % 7;
+  date.setDate(date.getDate() - diff);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+function isSameOrAfterLocalDayStart(isoString, now = /* @__PURE__ */ new Date()) {
+  const timestamp = new Date(isoString).getTime();
+  return Number.isFinite(timestamp) && timestamp >= startOfTodayTimestamp(now);
+}
+
+// src/background/storage.ts
+var ACTIVITY_KEY = "activityRecords";
+var SNAPSHOT_KEY = "dashboardSnapshot";
+var TIMER_WARNING_STATE_KEY = "timerWarningState";
+var TEMPORARY_BYPASS_KEY = "temporaryBypassState";
+var ACTIVE_BROWSER_SESSION_KEY = "activeBrowserSession";
+var LAST_BROWSER_SESSION_KEY = "lastBrowserSession";
+var BROWSER_SESSION_STALE_MS = 2 * 6e4;
+async function getLocal(key, fallback) {
+  const result = await chrome.storage.local.get(key);
+  return result[key] ?? fallback;
+}
+async function setLocal(key, value) {
+  await chrome.storage.local.set({ [key]: value });
+}
+async function hasShownTimerWarning(warningKey) {
+  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
+  return Boolean(state[warningKey]);
+}
+async function markTimerWarningShown(warningKey) {
+  const state = await getLocal(TIMER_WARNING_STATE_KEY, {});
+  state[warningKey] = true;
+  await setLocal(TIMER_WARNING_STATE_KEY, state);
+}
+async function hasTemporaryBypass(domain) {
+  const state = await getLocal(TEMPORARY_BYPASS_KEY, {});
+  const expiresAt = state[domain];
+  if (!expiresAt) {
+    return false;
+  }
+  if (expiresAt <= Date.now()) {
+    delete state[domain];
+    await setLocal(TEMPORARY_BYPASS_KEY, state);
+    return false;
+  }
+  return true;
+}
+function buildBrowserSessionRecord(activeSession, endedAt, endReason) {
+  const startedAtMs = new Date(activeSession.startedAt).getTime();
+  const endedAtMs = new Date(endedAt).getTime();
+  return {
+    startedAt: activeSession.startedAt,
+    endedAt,
+    durationMs: Math.max(0, endedAtMs - startedAtMs),
+    source: "extension",
+    endReason
+  };
+}
+async function beginBrowserSession() {
+  const now = /* @__PURE__ */ new Date();
+  const nowIso = now.toISOString();
+  const activeSession = await getLocal(ACTIVE_BROWSER_SESSION_KEY, null);
+  if (activeSession) {
+    const lastSeenAtMs = new Date(activeSession.lastSeenAt).getTime();
+    if (Number.isFinite(lastSeenAtMs) && now.getTime() - lastSeenAtMs > BROWSER_SESSION_STALE_MS) {
+      const recoveredSession = buildBrowserSessionRecord(activeSession, activeSession.lastSeenAt, "startup-recovery");
+      await setLocal(LAST_BROWSER_SESSION_KEY, recoveredSession);
+      await setLocal(ACTIVE_BROWSER_SESSION_KEY, {
+        startedAt: nowIso,
+        lastSeenAt: nowIso
+      });
+      return recoveredSession;
+    }
+    await setLocal(ACTIVE_BROWSER_SESSION_KEY, {
+      ...activeSession,
+      lastSeenAt: nowIso
+    });
+    return null;
+  }
+  await setLocal(ACTIVE_BROWSER_SESSION_KEY, {
+    startedAt: nowIso,
+    lastSeenAt: nowIso
+  });
+  return null;
+}
+async function touchBrowserSession() {
+  const activeSession = await getLocal(ACTIVE_BROWSER_SESSION_KEY, null);
+  if (!activeSession) {
+    await beginBrowserSession();
+    return;
+  }
+  await setLocal(ACTIVE_BROWSER_SESSION_KEY, {
+    ...activeSession,
+    lastSeenAt: (/* @__PURE__ */ new Date()).toISOString()
+  });
+}
+async function finalizeBrowserSession(endReason = "browser-closed") {
+  const activeSession = await getLocal(ACTIVE_BROWSER_SESSION_KEY, null);
+  if (!activeSession) {
+    return null;
+  }
+  const endedAtCandidate = activeSession.lastSeenAt || (/* @__PURE__ */ new Date()).toISOString();
+  const completedSession = buildBrowserSessionRecord(activeSession, endedAtCandidate, endReason);
+  await setLocal(LAST_BROWSER_SESSION_KEY, completedSession);
+  await setLocal(ACTIVE_BROWSER_SESSION_KEY, null);
+  return completedSession;
+}
+async function getTrackingStartedAt() {
+  const activeSession = await getLocal(ACTIVE_BROWSER_SESSION_KEY, null);
+  return activeSession?.startedAt ?? null;
+}
+async function getLastBrowserSession() {
+  return getLocal(LAST_BROWSER_SESSION_KEY, null);
+}
+async function getActivities() {
+  return getLocal(ACTIVITY_KEY, []);
+}
+async function updateSnapshot(currentDomain, currentTabStartedAt, liveActivity) {
+  const activities = await getActivities();
+  return buildSnapshot(currentDomain, currentTabStartedAt, activities, liveActivity);
+}
+async function saveActivity(activity) {
+  const existing = await getActivities();
+  const next = [...existing, activity];
+  await setLocal(ACTIVITY_KEY, next);
+  return next;
+}
+async function buildSnapshot(currentDomain, currentTabStartedAt, activities, liveActivity) {
+  const trackingStartedAt = await getTrackingStartedAt();
+  const lastBrowserSession = await getLastBrowserSession();
+  const todayActivities = activities.filter((entry) => isSameOrAfterLocalDayStart(entry.startedAt));
+  const liveRecords = liveActivity && isSameOrAfterLocalDayStart(liveActivity.startedAt) ? [liveActivity] : [];
+  const records = [...todayActivities, ...liveRecords];
+  const totalsMap = /* @__PURE__ */ new Map();
+  const categoryTotalsMap = /* @__PURE__ */ new Map();
+  for (const entry of records) {
+    const current = totalsMap.get(entry.domain) ?? { domain: entry.domain, totalMs: 0, visits: 0 };
+    current.totalMs += entry.durationMs;
+    current.visits += 1;
+    totalsMap.set(entry.domain, current);
+    if (entry.normalizedCategory) {
+      const categoryCurrent = categoryTotalsMap.get(entry.normalizedCategory) ?? {
+        normalizedCategory: entry.normalizedCategory,
+        totalMs: 0,
+        visits: 0
+      };
+      categoryCurrent.totalMs += entry.durationMs;
+      categoryCurrent.visits += 1;
+      categoryTotalsMap.set(entry.normalizedCategory, categoryCurrent);
+    }
+  }
+  const topSites = [...totalsMap.values()].sort((a, b) => b.totalMs - a.totalMs).slice(0, 5);
+  const topCategories = [...categoryTotalsMap.values()].sort((a, b) => b.totalMs - a.totalMs);
+  const totalMs = records.reduce((sum, entry) => sum + entry.durationMs, 0);
+  const snapshot = {
+    totalMs,
+    currentDomain,
+    currentTabStartedAt,
+    trackingStartedAt,
+    lastBrowserSession,
+    topSites,
+    topCategories,
+    activities: records.slice().reverse()
+  };
+  await setLocal(SNAPSHOT_KEY, snapshot);
+  return snapshot;
 }
 
 // src/background/tracker.ts
@@ -437,9 +507,6 @@ var ActivityTracker = class {
       reasonDescription: `${domain} is not part of your current study-mode allowlist, so Doom2Bloom blocked it immediately.`
     };
   }
-  isAlwaysAllowedStudyDomain(domain) {
-    return domain === "youtube.com" || domain.endsWith(".youtube.com") || domain === "edu" || domain.endsWith(".edu");
-  }
   isAlwaysAllowedStudySearchPage(rawUrl) {
     try {
       const url = new URL(rawUrl);
@@ -562,8 +629,21 @@ var ActivityTracker = class {
 
 // src/background/index.ts
 var tracker = new ActivityTracker();
+var browserSessionInitPromise = null;
 function ensureSyncAlarm() {
   chrome.alarms.create("sync-current-tab", { periodInMinutes: 0.5 });
+}
+async function ensureBrowserSession() {
+  const recoveredSession = await beginBrowserSession();
+  if (recoveredSession) {
+    await sendBrowserSession(recoveredSession);
+  }
+}
+function getBrowserSessionInitPromise() {
+  if (!browserSessionInitPromise) {
+    browserSessionInitPromise = ensureBrowserSession();
+  }
+  return browserSessionInitPromise;
 }
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -573,10 +653,14 @@ function getTabUrl(tab) {
   return tab?.url ?? tab?.pendingUrl ?? null;
 }
 async function syncCurrentTab() {
+  await getBrowserSessionInitPromise();
+  await touchBrowserSession();
   const activeTab = await getActiveTab();
   await tracker.startForTab(activeTab);
 }
 async function getPopupState() {
+  await getBrowserSessionInitPromise();
+  await touchBrowserSession();
   const activeTab = await getActiveTab();
   const snapshot = await tracker.startForTab(activeTab);
   const currentUrl = getTabUrl(activeTab);
@@ -586,15 +670,18 @@ async function getPopupState() {
     currentSiteLabel: currentUrl ? extractDomain(currentUrl) : null
   };
 }
+void getBrowserSessionInitPromise();
 void syncCurrentTab();
 ensureSyncAlarm();
 chrome.runtime.onInstalled.addListener(async () => {
+  await getBrowserSessionInitPromise();
   ensureSyncAlarm();
   await syncCurrentTab();
 });
 chrome.runtime.onStartup.addListener(async () => {
+  browserSessionInitPromise = null;
+  await getBrowserSessionInitPromise();
   ensureSyncAlarm();
-  await restartTrackingSession();
   await syncCurrentTab();
 });
 chrome.tabs.onActivated.addListener(async () => {
@@ -614,6 +701,16 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
     return;
   }
   await syncCurrentTab();
+});
+chrome.windows.onRemoved.addListener(async () => {
+  const remainingWindows = await chrome.windows.getAll();
+  if (remainingWindows.length > 0) {
+    return;
+  }
+  const completedSession = await finalizeBrowserSession("browser-closed");
+  if (completedSession) {
+    await sendBrowserSession(completedSession);
+  }
 });
 chrome.idle.onStateChanged.addListener(async (newState) => {
   if (newState === "active") {

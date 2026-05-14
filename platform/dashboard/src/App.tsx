@@ -4,8 +4,21 @@ import FocusRulesManager from "@/components/focus-rules-manager";
 import StudyModeManager from "@/components/study-mode-manager";
 import HeroDemo from "@/demo";
 
+function getInitialView(): "hero" | "dashboard" | "blocking" | "study" {
+  if (typeof window === "undefined") {
+    return "hero";
+  }
+
+  const route = window.location.hash.replace(/^#/, "").trim().toLowerCase();
+  if (route === "dashboard" || route === "blocking" || route === "study") {
+    return route;
+  }
+
+  return "hero";
+}
+
 export default function App() {
-  const [view, setView] = useState<"hero" | "dashboard" | "blocking" | "study">("hero");
+  const [view, setView] = useState<"hero" | "dashboard" | "blocking" | "study">(getInitialView);
 
   if (view === "study") {
     return <StudyModeManager onBack={() => setView("dashboard")} />;

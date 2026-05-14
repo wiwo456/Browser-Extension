@@ -18,6 +18,38 @@ var visitButton = getRequiredElement("[data-visit]");
 var bypassMinutesSelect = getRequiredElement("[data-bypass-minutes]");
 var backButton = getRequiredElement("[data-back]");
 var hintElement = getRequiredElement("[data-hint]");
+var countdownElement = getRequiredElement("[data-countdown]");
+function setCountdown(secondsRemaining) {
+  if (!countdownElement) {
+    return;
+  }
+  countdownElement.style.display = "inline-flex";
+  countdownElement.textContent = `Closing this tab in ${secondsRemaining} second${secondsRemaining === 1 ? "" : "s"}.`;
+}
+async function closeBlockedTab() {
+  try {
+    const currentTab = await chrome.tabs.getCurrent();
+    if (typeof currentTab?.id === "number") {
+      await chrome.tabs.remove(currentTab.id);
+      return;
+    }
+  } catch {
+  }
+  window.close();
+}
+function startAutoCloseCountdown(seconds) {
+  let remaining = seconds;
+  setCountdown(remaining);
+  const intervalId = window.setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      window.clearInterval(intervalId);
+      void closeBlockedTab();
+      return;
+    }
+    setCountdown(remaining);
+  }, 1e3);
+}
 if (domainElement && domain) {
   domainElement.textContent = domain;
 }
@@ -33,10 +65,8 @@ async function setupVisitAction() {
   }
   if (reasonCode === "study-mode") {
     visitRow.style.display = "none";
-    hintElement.textContent = "Study mode does not allow bypass. This tab will close automatically in 5 seconds.";
-    window.setTimeout(() => {
-      window.close();
-    }, 5e3);
+    hintElement.textContent = "Study mode is active, so this page cannot use a temporary bypass.";
+    startAutoCloseCountdown(5);
     return;
   }
   if (!originalUrl || !domain || !bypassMinutesSelect) {
@@ -65,6 +95,6 @@ async function setupVisitAction() {
 void setupVisitAction();
 if (backButton) {
   backButton.addEventListener("click", async () => {
-    window.close();
+    await closeBlockedTab();
   });
 }

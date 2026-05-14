@@ -23,14 +23,22 @@ function normalizeCreatedAtTimestamp(createdAt) {
 export class ActivityStore {
     constructor(storagePath) {
         this.activities = [];
+        this.browserSessions = [];
         this.store = new RuntimeJsonStore("activities", storagePath, []);
+        this.browserSessionStore = new RuntimeJsonStore("browser-sessions", storagePath.replace(/activities\.json$/, "browser-sessions.json"), []);
     }
     async init() {
         this.activities = await this.store.read();
+        this.browserSessions = await this.browserSessionStore.read();
     }
     async add(record) {
         this.activities.push(record);
         await this.store.write(this.activities);
+    }
+    async addBrowserSession(session) {
+        this.browserSessions.push(session);
+        this.browserSessions.sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+        await this.browserSessionStore.write(this.browserSessions);
     }
     getToday(category) {
         const activities = this.activities.filter((entry) => {
@@ -62,10 +70,21 @@ export class ActivityStore {
         }
         return {
             totalMs: activities.reduce((sum, entry) => sum + entry.durationMs, 0),
+            lastBrowserSession: this.getLastBrowserSession(),
+            recentBrowserSessions: this.getRecentBrowserSessions(4),
             topSites: [...totals.values()].sort((a, b) => b.totalMs - a.totalMs).slice(0, 5),
             topCategories: [...categoryTotals.values()].sort((a, b) => b.totalMs - a.totalMs),
             activities: activities.slice().reverse()
         };
+    }
+    getLastBrowserSession() {
+        return this.browserSessions.length > 0 ? this.browserSessions[this.browserSessions.length - 1] : null;
+    }
+    getRecentBrowserSessions(limit) {
+        if (limit <= 0) {
+            return [];
+        }
+        return this.browserSessions.slice(-limit).reverse();
     }
     getDomainUsage(window, blockedDomain, createdAt) {
         return this.activities

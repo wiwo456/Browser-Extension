@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import DashboardBeamsShell from "@/components/ui/dashboard-beams-shell";
 import { GlassButton } from "@/components/ui/glass-button";
 import { getApiUrl } from "@/lib/api";
 import type { NormalizedCategory } from "@/types/activity";
@@ -71,8 +72,24 @@ export default function StudyModeManager({ onBack }: StudyModeManagerProps) {
     }
 
     void loadRules();
+
+    function handleWindowFocus(): void {
+      void loadRules();
+    }
+
+    function handleVisibilityChange(): void {
+      if (document.visibilityState === "visible") {
+        void loadRules();
+      }
+    }
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -146,8 +163,8 @@ export default function StudyModeManager({ onBack }: StudyModeManagerProps) {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+    <DashboardBeamsShell>
+      <main className="mx-auto max-w-5xl">
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <GlassButton onClick={onBack} size="sm" contentClassName="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -245,7 +262,7 @@ export default function StudyModeManager({ onBack }: StudyModeManagerProps) {
             </div>
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </DashboardBeamsShell>
   );
 }

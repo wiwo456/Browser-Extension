@@ -1,4 +1,5 @@
 import { BadJsonBodyError, readJsonBody } from "../utils/readJsonBody.js";
+import { isAlwaysAllowedStudyDomain } from "../utils/studyMode.js";
 function normalizeDomain(rawValue) {
     return rawValue.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
 }
@@ -88,9 +89,6 @@ function findMatchedBlockedDomain(domain, blockedDomains) {
         }
     }
     return null;
-}
-function isAlwaysAllowedStudyDomain(domain) {
-    return domain === "youtube.com" || domain.endsWith(".youtube.com") || domain === "edu" || domain.endsWith(".edu");
 }
 function isAlwaysAllowedStudySearchPage(rawUrl) {
     try {

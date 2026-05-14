@@ -52,6 +52,89 @@
         pointer-events: none;
       }
 
+      .beams {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        opacity: 0.42;
+      }
+
+      .beam-base {
+        stroke: rgba(113, 113, 122, 0.28);
+        stroke-width: 1;
+        fill: none;
+      }
+
+      .beam-glow {
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+
+      .beam-node {
+        fill: rgba(24, 24, 27, 0.88);
+        stroke: rgba(255, 255, 255, 0.14);
+      }
+
+      @keyframes beamFlowOne {
+        0% {
+          x1: 0%;
+          y1: 0%;
+          x2: 12%;
+          y2: 14%;
+        }
+        100% {
+          x1: 85%;
+          y1: 100%;
+          x2: 100%;
+          y2: 78%;
+        }
+      }
+
+      @keyframes beamFlowTwo {
+        0% {
+          x1: 100%;
+          y1: 10%;
+          x2: 88%;
+          y2: 0%;
+        }
+        100% {
+          x1: 18%;
+          y1: 100%;
+          x2: 0%;
+          y2: 86%;
+        }
+      }
+
+      @keyframes beamFlowThree {
+        0% {
+          x1: 0%;
+          y1: 86%;
+          x2: 12%;
+          y2: 100%;
+        }
+        100% {
+          x1: 100%;
+          y1: 20%;
+          x2: 82%;
+          y2: 0%;
+        }
+      }
+
+      .beam-gradient-1 {
+        animation: beamFlowOne 3.8s linear infinite;
+      }
+
+      .beam-gradient-2 {
+        animation: beamFlowTwo 4.4s linear infinite 0.8s;
+      }
+
+      .beam-gradient-3 {
+        animation: beamFlowThree 4s linear infinite 1.4s;
+      }
+
       .eyebrow {
         position: relative;
         z-index: 1;
@@ -61,25 +144,6 @@
         font-weight: 700;
         letter-spacing: 0.22em;
         text-transform: uppercase;
-      }
-
-      h1 {
-        position: relative;
-        z-index: 1;
-        margin: 0;
-        font-size: 2rem;
-        font-weight: 700;
-        line-height: 0.95;
-        letter-spacing: -0.04em;
-      }
-
-      .subtitle {
-        position: relative;
-        z-index: 1;
-        margin: 10px 0 18px;
-        color: var(--muted);
-        line-height: 1.55;
-        max-width: 26ch;
       }
 
       .hero {
@@ -157,6 +221,14 @@
         line-height: 1.1;
       }
 
+      .stat-value.is-warning {
+        color: #facc15;
+      }
+
+      .stat-value.is-danger {
+        color: #f87171;
+      }
+
       .stat-note {
         margin-top: 6px;
         color: #71717a;
@@ -169,6 +241,68 @@
         display: grid;
         gap: 10px;
         margin-top: 18px;
+      }
+
+      .mode-row {
+        position: relative;
+        z-index: 1;
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 16px 18px;
+        border-radius: 22px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+      }
+
+      .mode-row.is-on {
+        background: rgba(34, 197, 94, 0.16);
+        border-color: rgba(34, 197, 94, 0.3);
+      }
+
+      .mode-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--ink);
+      }
+
+      .toggle {
+        position: relative;
+        flex: 0 0 auto;
+        width: 56px;
+        height: 32px;
+        border-radius: 999px;
+        border: 1px solid var(--line-strong);
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0;
+      }
+
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: #fafafa;
+        transition: transform 120ms ease;
+      }
+
+      .toggle.is-on {
+        background: rgba(34, 197, 94, 0.26);
+        border-color: rgba(34, 197, 94, 0.4);
+      }
+
+      .toggle.is-on::after {
+        transform: translateX(24px);
+      }
+
+      .toggle:disabled {
+        opacity: 0.6;
+        cursor: wait;
       }
 
       button {
@@ -215,9 +349,45 @@
   </head>
   <body>
     <div class="shell">
+      <svg class="beams" viewBox="0 0 360 480" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="popupBeamOne" class="beam-gradient-1" gradientUnits="userSpaceOnUse" x1="0%" y1="0%" x2="12%" y2="14%">
+            <stop offset="0%" stop-color="#22d3ee" stop-opacity="0"></stop>
+            <stop offset="30%" stop-color="#22d3ee" stop-opacity="0.95"></stop>
+            <stop offset="60%" stop-color="#60a5fa" stop-opacity="0.95"></stop>
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"></stop>
+          </linearGradient>
+          <linearGradient id="popupBeamTwo" class="beam-gradient-2" gradientUnits="userSpaceOnUse" x1="100%" y1="10%" x2="88%" y2="0%">
+            <stop offset="0%" stop-color="#38bdf8" stop-opacity="0"></stop>
+            <stop offset="28%" stop-color="#38bdf8" stop-opacity="0.9"></stop>
+            <stop offset="58%" stop-color="#818cf8" stop-opacity="0.95"></stop>
+            <stop offset="100%" stop-color="#f472b6" stop-opacity="0"></stop>
+          </linearGradient>
+          <linearGradient id="popupBeamThree" class="beam-gradient-3" gradientUnits="userSpaceOnUse" x1="0%" y1="86%" x2="12%" y2="100%">
+            <stop offset="0%" stop-color="#14b8a6" stop-opacity="0"></stop>
+            <stop offset="28%" stop-color="#22d3ee" stop-opacity="0.92"></stop>
+            <stop offset="55%" stop-color="#8b5cf6" stop-opacity="0.95"></stop>
+            <stop offset="100%" stop-color="#f59e0b" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+
+        <path class="beam-base" d="M16 110H128C154 110 172 128 172 154V202"></path>
+        <path class="beam-glow" d="M16 110H128C154 110 172 128 172 154V202" stroke="url(#popupBeamOne)"></path>
+        <circle class="beam-node" cx="16" cy="110" r="4.5"></circle>
+        <circle class="beam-node" cx="172" cy="202" r="4.5"></circle>
+
+        <path class="beam-base" d="M344 156H258C232 156 210 176 210 204V286"></path>
+        <path class="beam-glow" d="M344 156H258C232 156 210 176 210 204V286" stroke="url(#popupBeamTwo)"></path>
+        <circle class="beam-node" cx="344" cy="156" r="4.5"></circle>
+        <circle class="beam-node" cx="210" cy="286" r="4.5"></circle>
+
+        <path class="beam-base" d="M34 410H102C138 410 162 388 162 352V312"></path>
+        <path class="beam-glow" d="M34 410H102C138 410 162 388 162 352V312" stroke="url(#popupBeamThree)"></path>
+        <circle class="beam-node" cx="34" cy="410" r="4.5"></circle>
+        <circle class="beam-node" cx="162" cy="312" r="4.5"></circle>
+      </svg>
+
       <p class="eyebrow">Doom2Bloom</p>
-      <h1>Stay with what matters.</h1>
-      <p class="subtitle">A cleaner extension view for your live browsing state.</p>
 
       <section class="hero">
         <span class="hero-label">Current site</span>
@@ -233,15 +403,19 @@
           <p class="stat-note">Since detection started</p>
         </article>
         <article class="stat">
-          <span class="stat-label">Today total</span>
-          <div class="stat-value mono" data-total-today>00:00:00</div>
-          <p class="stat-note">Active browser time</p>
+          <span class="stat-label">Site total</span>
+          <div class="stat-value mono" data-site-total>00:00:00</div>
+          <p class="stat-note">Time on this website today</p>
         </article>
       </section>
 
+      <section class="mode-row">
+        <div class="mode-title">Study mode</div>
+        <button class="toggle" type="button" data-study-mode-toggle aria-label="Toggle study mode" aria-pressed="false"></button>
+      </section>
+
       <div class="actions">
-        <button class="primary" type="button" data-open-website>Connect to website</button>
-        <button class="secondary" type="button" data-refresh>Refresh session</button>
+        <button class="primary" type="button" data-open-dashboard>Open dashboard</button>
       </div>
     </div>
     <script type="module" src="../dist/popup/index.js"></script>

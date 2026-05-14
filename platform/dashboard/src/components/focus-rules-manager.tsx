@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
+import DashboardBeamsShell from "@/components/ui/dashboard-beams-shell";
 import { GlassButton } from "@/components/ui/glass-button";
 import { getApiUrl } from "@/lib/api";
 import type { NormalizedCategory } from "@/types/activity";
@@ -64,7 +65,14 @@ function normalizeFocusRules(input: Partial<FocusRules> | null | undefined): Foc
     blockedDomains: Array.isArray(input?.blockedDomains) ? input.blockedDomains : [],
     blockedCategories: Array.isArray(input?.blockedCategories) ? input.blockedCategories : [],
     domainTimerRules: Array.isArray(input?.domainTimerRules) ? input.domainTimerRules : [],
-    categoryTimerRules: Array.isArray(input?.categoryTimerRules) ? input.categoryTimerRules : []
+    categoryTimerRules: Array.isArray(input?.categoryTimerRules) ? input.categoryTimerRules : [],
+    studyMode: {
+      enabled: Boolean(input?.studyMode?.enabled),
+      allowedDomains: Array.isArray(input?.studyMode?.allowedDomains) ? input.studyMode.allowedDomains : [],
+      allowedCategories: Array.isArray(input?.studyMode?.allowedCategories)
+        ? input.studyMode.allowedCategories
+        : DEFAULT_FOCUS_RULES.studyMode.allowedCategories
+    }
   };
 }
 
@@ -345,8 +353,8 @@ export default function FocusRulesManager({ onBack }: FocusRulesManagerProps) {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+    <DashboardBeamsShell>
+      <main className="mx-auto max-w-5xl">
         <div className="mb-8 flex flex-wrap items-center gap-3">
           <GlassButton onClick={onBack} size="sm" contentClassName="flex items-center gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -678,7 +686,7 @@ export default function FocusRulesManager({ onBack }: FocusRulesManagerProps) {
             </div>
           ) : null}
         </section>
-      </div>
-    </main>
+      </main>
+    </DashboardBeamsShell>
   );
 }

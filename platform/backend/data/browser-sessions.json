@@ -1,0 +1,16 @@
+[
+  {
+    "startedAt": "2026-05-13T23:01:27.246Z",
+    "endedAt": "2026-05-14T00:12:38.858Z",
+    "durationMs": 4271612,
+    "source": "extension",
+    "endReason": "startup-recovery"
+  },
+  {
+    "startedAt": "2026-05-13T23:01:27.246Z",
+    "endedAt": "2026-05-14T00:12:38.858Z",
+    "durationMs": 4271612,
+    "source": "extension",
+    "endReason": "startup-recovery"
+  }
+]

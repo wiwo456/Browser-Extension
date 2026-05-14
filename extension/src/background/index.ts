@@ -1,12 +1,29 @@
 import type { PopupState } from "../types/activity.js";
 import { extractDomain } from "../utils/domain.js";
+import { sendBrowserSession } from "./api.js";
+import { beginBrowserSession, finalizeBrowserSession, touchBrowserSession } from "./storage.js";
 import { ActivityTracker } from "./tracker.js";
-import { restartTrackingSession } from "./storage.js";
 
 const tracker = new ActivityTracker();
+let browserSessionInitPromise: Promise<void> | null = null;
 
 function ensureSyncAlarm(): void {
   chrome.alarms.create("sync-current-tab", { periodInMinutes: 0.5 });
+}
+
+async function ensureBrowserSession(): Promise<void> {
+  const recoveredSession = await beginBrowserSession();
+  if (recoveredSession) {
+    await sendBrowserSession(recoveredSession);
+  }
+}
+
+function getBrowserSessionInitPromise(): Promise<void> {
+  if (!browserSessionInitPromise) {
+    browserSessionInitPromise = ensureBrowserSession();
+  }
+
+  return browserSessionInitPromise;
 }
 
 async function getActiveTab(): Promise<any | null> {
@@ -19,11 +36,15 @@ function getTabUrl(tab?: { url?: string; pendingUrl?: string } | null): string |
 }
 
 async function syncCurrentTab(): Promise<void> {
+  await getBrowserSessionInitPromise();
+  await touchBrowserSession();
   const activeTab = await getActiveTab();
   await tracker.startForTab(activeTab);
 }
 
 async function getPopupState(): Promise<PopupState> {
+  await getBrowserSessionInitPromise();
+  await touchBrowserSession();
   const activeTab = await getActiveTab();
   const snapshot = await tracker.startForTab(activeTab);
   const currentUrl = getTabUrl(activeTab);
@@ -35,18 +56,21 @@ async function getPopupState(): Promise<PopupState> {
   };
 }
 
+void getBrowserSessionInitPromise();
 void syncCurrentTab();
 
 ensureSyncAlarm();
 
 chrome.runtime.onInstalled.addListener(async () => {
+  await getBrowserSessionInitPromise();
   ensureSyncAlarm();
   await syncCurrentTab();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  browserSessionInitPromise = null;
+  await getBrowserSessionInitPromise();
   ensureSyncAlarm();
-  await restartTrackingSession();
   await syncCurrentTab();
 });
 
@@ -70,6 +94,18 @@ chrome.windows.onFocusChanged.addListener(async (windowId: number) => {
   }
 
   await syncCurrentTab();
+});
+
+chrome.windows.onRemoved.addListener(async () => {
+  const remainingWindows = await chrome.windows.getAll();
+  if (remainingWindows.length > 0) {
+    return;
+  }
+
+  const completedSession = await finalizeBrowserSession("browser-closed");
+  if (completedSession) {
+    await sendBrowserSession(completedSession);
+  }
 });
 
 chrome.idle.onStateChanged.addListener(async (newState: "active" | "idle" | "locked") => {

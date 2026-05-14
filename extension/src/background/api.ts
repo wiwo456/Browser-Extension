@@ -1,4 +1,4 @@
-import type { ActivityRecord } from "../types/activity.js";
+import type { ActivityRecord, BrowserSessionRecord } from "../types/activity.js";
 import type { NormalizedCategory } from "../types/activity.js";
 import { DEFAULT_FOCUS_RULES, type FocusRules } from "../types/focus-rules.js";
 
@@ -67,6 +67,20 @@ export async function sendActivity(activity: ActivityRecord): Promise<void> {
     });
   } catch (error) {
     console.warn("Failed to send activity to backend", error);
+  }
+}
+
+export async function sendBrowserSession(session: BrowserSessionRecord): Promise<void> {
+  try {
+    await fetchJsonWithFallback<{ ok: boolean }>("/browser-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ session })
+    });
+  } catch (error) {
+    console.warn("Failed to send browser session to backend", error);
   }
 }
 
