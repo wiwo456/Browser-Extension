@@ -5,13 +5,20 @@ import { fileURLToPath } from "node:url";
 import { ActivityStore } from "./services/activityStore.js";
 import { CategoryLookupService } from "./services/categoryLookup.js";
 import { DiscordService } from "./services/discordService.js";
+import { NotificationSettingsStore } from "./services/notificationSettingsStore.js";
 import { FocusRulesStore } from "./services/focusRulesStore.js";
 import { handleTrackBrowserSession } from "./routes/browserSession.js";
 import { handleClassify } from "./routes/classify.js";
 import { handleGetFocusRules, handleUpdateFocusRules } from "./routes/focusRules.js";
 import { handleFocusRulesTest } from "./routes/focusRulesTest.js";
+import {
+  handleGetNotificationSettings,
+  handleNotificationEvent,
+  handleSendTestNotification,
+  handleUpdateNotificationSettings
+} from "./routes/notifications.js";
 import { handleTrack } from "./routes/track.js";
-import { handleSummary } from "./routes/summary.js";
+import { handleSummary, handleTimelineSummary } from "./routes/summary.js";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const backendRootDir = join(moduleDir, "..");
@@ -22,7 +29,8 @@ const dashboardIndexPath = join(dashboardDir, "index.html");
 const store = new ActivityStore(join(dataDir, "activities.json"));
 const categoryLookup = new CategoryLookupService(join(dataDir, "domain-category-lookup.json"));
 const focusRulesStore = new FocusRulesStore(join(dataDir, "focus-rules.json"));
-const discord = new DiscordService();
+const notificationSettingsStore = new NotificationSettingsStore(join(dataDir, "notification-settings.json"));
+const discord = new DiscordService(notificationSettingsStore);
 
 let initPromise: Promise<void> | null = null;
 
@@ -56,7 +64,12 @@ function getContentType(filePath: string): string {
 
 async function ensureReady(): Promise<void> {
   if (!initPromise) {
-    initPromise = Promise.all([categoryLookup.init(), focusRulesStore.init(), store.init()]).then(() => undefined);
+    initPromise = Promise.all([
+      categoryLookup.init(),
+      focusRulesStore.init(),
+      notificationSettingsStore.init(),
+      store.init()
+    ]).then(() => undefined);
   }
 
   await initPromise;
@@ -126,23 +139,48 @@ export async function handleAppRequest(
     return;
   }
 
+  if (req.method === "GET" && req.url?.startsWith("/summary/timeline")) {
+    handleTimelineSummary(req, res, store);
+    return;
+  }
+
   if (req.method === "GET" && req.url?.startsWith("/classify")) {
     handleClassify(req, res, categoryLookup);
     return;
   }
 
   if (req.url === "/focus-rules" && req.method === "GET") {
-    handleGetFocusRules(res, { focusRulesStore });
+    handleGetFocusRules(res, { focusRulesStore, discord });
     return;
   }
 
   if (req.url === "/focus-rules" && req.method === "PUT") {
-    await handleUpdateFocusRules(req, res, { focusRulesStore });
+    await handleUpdateFocusRules(req, res, { focusRulesStore, discord });
     return;
   }
 
   if (req.url === "/focus-rules/test" && req.method === "POST") {
     await handleFocusRulesTest(req, res, { activityStore: store, categoryLookup, focusRulesStore });
+    return;
+  }
+
+  if (req.url === "/notifications/settings" && req.method === "GET") {
+    handleGetNotificationSettings(res, { notificationSettingsStore, discord });
+    return;
+  }
+
+  if (req.url === "/notifications/settings" && req.method === "PUT") {
+    await handleUpdateNotificationSettings(req, res, { notificationSettingsStore, discord });
+    return;
+  }
+
+  if (req.url === "/notifications/test" && req.method === "POST") {
+    await handleSendTestNotification(req, res, { notificationSettingsStore, discord });
+    return;
+  }
+
+  if (req.url === "/notifications/event" && req.method === "POST") {
+    await handleNotificationEvent(req, res, { notificationSettingsStore, discord });
     return;
   }
 

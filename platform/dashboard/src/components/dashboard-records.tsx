@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Clock3, Globe, RotateCcw, TimerReset } from "lucide-react";
+import { ArrowLeft, Bell, Clock3, Globe, RotateCcw, TimerReset } from "lucide-react";
 import type { ActivityRecord, BrowserSessionRecord, DailySummary, NormalizedCategory } from "@/types/activity";
 import DashboardBeamsShell from "@/components/ui/dashboard-beams-shell";
+import BloomTrendChart from "@/components/ui/bloom-trend-chart";
 import { GlassButton } from "@/components/ui/glass-button";
 import { getApiUrl } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
@@ -34,6 +35,7 @@ const CATEGORY_TONES: Record<NormalizedCategory, string> = {
 
 const EMPTY_SUMMARY: DailySummary = {
   totalMs: 0,
+  lifetimeTotalMs: 0,
   lastBrowserSession: null,
   recentBrowserSessions: [],
   topSites: [],
@@ -44,6 +46,7 @@ const EMPTY_SUMMARY: DailySummary = {
 function normalizeSummary(data: Partial<DailySummary> | null | undefined): DailySummary {
   return {
     totalMs: data?.totalMs ?? 0,
+    lifetimeTotalMs: data?.lifetimeTotalMs ?? 0,
     lastBrowserSession: data?.lastBrowserSession ?? null,
     recentBrowserSessions: Array.isArray(data?.recentBrowserSessions) ? data.recentBrowserSessions : [],
     topSites: Array.isArray(data?.topSites) ? data.topSites : [],
@@ -148,9 +151,15 @@ interface DashboardRecordsProps {
   onBack: () => void;
   onOpenBlocking: () => void;
   onOpenStudyMode: () => void;
+  onOpenNotifications: () => void;
 }
 
-export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMode }: DashboardRecordsProps) {
+export default function DashboardRecords({
+  onBack,
+  onOpenBlocking,
+  onOpenStudyMode,
+  onOpenNotifications
+}: DashboardRecordsProps) {
   const [summary, setSummary] = useState<DailySummary>(EMPTY_SUMMARY);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("loading");
   const [activeCategory, setActiveCategory] = useState<NormalizedCategory | "all">("all");
@@ -227,9 +236,15 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
             {isRefreshing ? "Refreshing..." : "Refresh"}
           </GlassButton>
           <div className="sm:ml-auto">
-            <GlassButton onClick={onOpenStudyMode} size="sm">
-              Study mode
-            </GlassButton>
+            <div className="flex flex-wrap gap-3">
+              <GlassButton onClick={onOpenNotifications} size="sm" contentClassName="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                Notifications
+              </GlassButton>
+              <GlassButton onClick={onOpenStudyMode} size="sm">
+                Study mode
+              </GlassButton>
+            </div>
           </div>
         </div>
 
@@ -257,6 +272,8 @@ export default function DashboardRecords({ onBack, onOpenBlocking, onOpenStudyMo
             </GlassButton>
           </div>
         </section>
+
+        <BloomTrendChart activeCategory={activeCategory} refreshKey={refreshTick} />
 
         <section className="mb-8 rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
           <div className="mb-4 flex items-center justify-between gap-4">

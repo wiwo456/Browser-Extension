@@ -1,7 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ArrowRight,
-  Play,
   Target,
   Crown,
   Star,
@@ -13,6 +12,9 @@ import {
   Cpu
 } from "lucide-react";
 import { GlassButton } from "@/components/ui/glass-button";
+import { getApiUrl } from "@/lib/api";
+import { formatDuration } from "@/lib/format";
+import type { DailySummary } from "@/types/activity";
 
 const CLIENTS = [
   { name: "Chrome", icon: Hexagon },
@@ -30,11 +32,47 @@ const StatItem = ({ value, label }: { value: string; label: string }) => (
   </div>
 );
 
+const EMPTY_SUMMARY: Pick<DailySummary, "lifetimeTotalMs"> = {
+  lifetimeTotalMs: 0
+};
+
 interface HeroSectionProps {
   onOpenDashboard?: () => void;
 }
 
 export default function HeroSection({ onOpenDashboard }: HeroSectionProps) {
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSummary() {
+      try {
+        const response = await fetch(getApiUrl("/summary/today"));
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as Partial<DailySummary>;
+        if (!cancelled) {
+          setSummary({
+            lifetimeTotalMs: data.lifetimeTotalMs ?? 0
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setSummary(EMPTY_SUMMARY);
+        }
+      }
+    }
+
+    void loadSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="relative w-full overflow-hidden bg-zinc-950 font-sans text-white">
       <style>{`
@@ -108,11 +146,6 @@ export default function HeroSection({ onOpenDashboard }: HeroSectionProps) {
                 Open Dashboard
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </GlassButton>
-
-              <GlassButton size="lg" className="group" contentClassName="flex items-center justify-center gap-2 text-white">
-                <Play className="h-4 w-4 fill-current" />
-                See How It Works
-              </GlassButton>
             </div>
           </div>
 
@@ -144,7 +177,7 @@ export default function HeroSection({ onOpenDashboard }: HeroSectionProps) {
                 <div className="mb-6 h-px w-full bg-white/10" />
 
                 <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-4 text-center">
-                  <StatItem value="6.4h" label="Tracked" />
+                  <StatItem value={formatDuration(summary.lifetimeTotalMs)} label="Tracked" />
                   <div className="mx-auto h-full w-px bg-white/10" />
                   <StatItem value="14" label="Sites" />
                   <div className="mx-auto h-full w-px bg-white/10" />

@@ -12,7 +12,7 @@ import {
   saveActivity,
   updateSnapshot
 } from "./storage.js";
-import { classifyDomain, getFocusRules, sendActivity } from "./api.js";
+import { classifyDomain, getFocusRules, sendActivity, sendNotificationEvent } from "./api.js";
 
 interface ActiveTabSession {
   url: string;
@@ -42,6 +42,13 @@ interface BlockDecision {
   reasonDescription: string;
 }
 
+interface RepeatDistractionCandidate {
+  domain: string;
+  visitCount: number;
+  windowMinutes: number;
+  normalizedCategory?: ActivityRecord["normalizedCategory"];
+}
+
 export class ActivityTracker {
   private currentSession: ActiveTabSession | null = null;
   private currentState: ActivityState = "hidden";
@@ -62,6 +69,7 @@ export class ActivityTracker {
     if (!(await hasTemporaryBypass(nextDomain))) {
       const blockDecision = this.getBlockDecision(nextUrl, nextDomain, categoryMatch.normalizedCategory, focusRules, activityRecords, liveActivity);
       if (blockDecision) {
+        await this.sendBlockedActionNotification(nextDomain, blockDecision);
         await this.pauseCurrent("hidden");
         await this.redirectToBlockPage(tab?.id, nextUrl, nextDomain, blockDecision);
         return this.refreshSnapshot();
@@ -74,6 +82,7 @@ export class ActivityTracker {
       !this.currentSession || this.currentSession.url !== nextUrl || this.currentState !== "active";
 
     if (shouldRotate) {
+      await this.maybeSendRepeatDistractionNotification(nextDomain, categoryMatch.normalizedCategory, activityRecords);
       await this.finishCurrentSession(this.currentState);
       this.currentSession = {
         url: nextUrl,
@@ -87,6 +96,37 @@ export class ActivityTracker {
 
     this.currentState = "active";
     return this.refreshSnapshot();
+  }
+
+  private async sendBlockedActionNotification(domain: string, blockDecision: BlockDecision): Promise<void> {
+    await sendNotificationEvent({
+      type: "blocked-action",
+      occurredAt: new Date().toISOString(),
+      domain,
+      reasonCode: blockDecision.reasonCode,
+      reasonLabel: blockDecision.reasonLabel,
+      reasonDescription: blockDecision.reasonDescription
+    });
+  }
+
+  private async maybeSendRepeatDistractionNotification(
+    domain: string,
+    normalizedCategory: ActivityRecord["normalizedCategory"],
+    activityRecords: ActivityRecord[]
+  ): Promise<void> {
+    const candidate = this.getRepeatDistractionCandidate(domain, normalizedCategory, activityRecords);
+    if (!candidate) {
+      return;
+    }
+
+    await sendNotificationEvent({
+      type: "repeat-distraction",
+      occurredAt: new Date().toISOString(),
+      domain: candidate.domain,
+      visitCount: candidate.visitCount,
+      windowMinutes: candidate.windowMinutes,
+      normalizedCategory: candidate.normalizedCategory ?? null
+    });
   }
 
   async pauseCurrent(reason: ActivityState): Promise<DashboardSnapshot> {
@@ -251,7 +291,7 @@ export class ActivityTracker {
       return null;
     }
 
-    if (this.isAlwaysAllowedStudyDomain(domain) || this.isAlwaysAllowedStudySearchPage(rawUrl)) {
+    if (isAlwaysAllowedStudyDomain(domain) || this.isAlwaysAllowedStudySearchPage(rawUrl)) {
       return null;
     }
 
@@ -374,6 +414,50 @@ export class ActivityTracker {
     }
 
     return null;
+  }
+
+  private getRepeatDistractionCandidate(
+    domain: string,
+    normalizedCategory: ActivityRecord["normalizedCategory"],
+    records: ActivityRecord[]
+  ): RepeatDistractionCandidate | null {
+    const distractingCategories: NonNullable<ActivityRecord["normalizedCategory"]>[] = [
+      "adult",
+      "entertainment",
+      "gaming",
+      "shopping",
+      "social"
+    ];
+    const windowMinutes = 15;
+    const minimumVisits = 3;
+
+    if (!normalizedCategory || !distractingCategories.includes(normalizedCategory)) {
+      return null;
+    }
+
+    const now = Date.now();
+    const windowStart = now - windowMinutes * 60_000;
+    const recentVisits = records.filter((record) => {
+      const startedAt = new Date(record.startedAt).getTime();
+      return (
+        Number.isFinite(startedAt) &&
+        startedAt >= windowStart &&
+        record.domain === domain &&
+        record.state === "active"
+      );
+    });
+
+    const visitCount = recentVisits.length + 1;
+    if (visitCount < minimumVisits) {
+      return null;
+    }
+
+    return {
+      domain,
+      visitCount,
+      windowMinutes,
+      normalizedCategory
+    };
   }
 
   private getDomainUsageMs(records: ActivityRecord[], window: TimerRuleWindow, blockedDomain: string, createdAt: string): number {

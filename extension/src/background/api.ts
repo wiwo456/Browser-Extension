@@ -7,6 +7,20 @@ interface CategoryMatch {
   normalizedCategory: NormalizedCategory | null;
 }
 
+export interface NotificationEvent {
+  type: "blocked-action" | "study-mode-status" | "repeat-distraction";
+  occurredAt: string;
+  domain?: string;
+  reasonCode?: "domain" | "category" | "domain-timer" | "category-timer" | "study-mode";
+  reasonLabel?: string;
+  reasonDescription?: string;
+  enabled?: boolean;
+  source?: "dashboard" | "popup" | "study-page" | "unknown";
+  visitCount?: number;
+  windowMinutes?: number;
+  normalizedCategory?: string | null;
+}
+
 let focusRulesCache: { value: FocusRules; expiresAt: number } | null = null;
 
 async function getBackendUrl(): Promise<string> {
@@ -97,6 +111,20 @@ export async function classifyDomain(domain: string): Promise<CategoryMatch> {
       rawCategory: null,
       normalizedCategory: null
     };
+  }
+}
+
+export async function sendNotificationEvent(event: NotificationEvent): Promise<void> {
+  try {
+    await fetchJsonWithFallback<{ ok: boolean }>("/notifications/event", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ event })
+    });
+  } catch (error) {
+    console.warn("Failed to send notification event to backend", error);
   }
 }
 
