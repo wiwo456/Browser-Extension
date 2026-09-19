@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:categories": "node scripts/build-category-lookup.mjs",
+    "build:ml-baseline": "node scripts/train-logreg-baseline.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/server.js"
   },

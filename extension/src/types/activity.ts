@@ -29,7 +29,7 @@ export interface BrowserSessionRecord {
   endedAt: string;
   durationMs: number;
   source: "extension";
-  endReason: "browser-closed" | "startup-recovery" | "manual-reset";
+  endReason: "browser-closed" | "startup-recovery" | "manual-reset" | "system-inactive";
 }
 
 export interface DailySiteTotal {

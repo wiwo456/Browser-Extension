@@ -36,3 +36,4 @@ Stubbed for later:
 4. Start the backend with `npm run start -w platform/backend`.
 5. Load `extension/` as an unpacked extension in Chrome.
 6. Open `http://localhost:8787` for the dashboard.
+also

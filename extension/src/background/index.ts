@@ -18,6 +18,15 @@ async function ensureBrowserSession(): Promise<void> {
   }
 }
 
+async function finalizeActiveBrowserSession(
+  endReason: "browser-closed" | "startup-recovery" | "manual-reset" | "system-inactive"
+): Promise<void> {
+  const completedSession = await finalizeBrowserSession(endReason);
+  if (completedSession) {
+    await sendBrowserSession(completedSession);
+  }
+}
+
 function getBrowserSessionInitPromise(): Promise<void> {
   if (!browserSessionInitPromise) {
     browserSessionInitPromise = ensureBrowserSession();
@@ -102,10 +111,7 @@ chrome.windows.onRemoved.addListener(async () => {
     return;
   }
 
-  const completedSession = await finalizeBrowserSession("browser-closed");
-  if (completedSession) {
-    await sendBrowserSession(completedSession);
-  }
+  await finalizeActiveBrowserSession("browser-closed");
 });
 
 chrome.idle.onStateChanged.addListener(async (newState: "active" | "idle" | "locked") => {
@@ -115,6 +121,7 @@ chrome.idle.onStateChanged.addListener(async (newState: "active" | "idle" | "loc
   }
 
   await tracker.pauseCurrent("idle");
+  await finalizeActiveBrowserSession("system-inactive");
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm: { name?: string }) => {

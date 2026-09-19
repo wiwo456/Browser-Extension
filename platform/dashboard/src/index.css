@@ -10,9 +10,19 @@
     --card-foreground: 0 0% 100%;
     --primary: 0 0% 100%;
     --primary-foreground: 240 10% 4%;
+    --secondary: 240 6% 13%;
+    --secondary-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
     --muted: 240 4% 46%;
     --muted-foreground: 240 5% 65%;
     --border: 240 4% 16%;
+    --ring: 240 5% 84%;
+    --chart-1: #22d3ee;
+    --chart-2: #38bdf8;
+    --chart-3: #facc15;
+    --chart-4: #f97316;
+    --chart-5: #ec4899;
   }
 
   * {

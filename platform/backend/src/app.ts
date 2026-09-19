@@ -25,9 +25,10 @@ const backendRootDir = join(moduleDir, "..");
 const dataDir = join(backendRootDir, "data");
 const dashboardDir = join(backendRootDir, "..", "dashboard", "dist");
 const dashboardIndexPath = join(dashboardDir, "index.html");
+const mlModelPath = join(dataDir, "ml-domain-logreg-model.json");
 
 const store = new ActivityStore(join(dataDir, "activities.json"));
-const categoryLookup = new CategoryLookupService(join(dataDir, "domain-category-lookup.json"));
+const categoryLookup = new CategoryLookupService(join(dataDir, "domain-category-lookup.json"), mlModelPath);
 const focusRulesStore = new FocusRulesStore(join(dataDir, "focus-rules.json"));
 const notificationSettingsStore = new NotificationSettingsStore(join(dataDir, "notification-settings.json"));
 const discord = new DiscordService(notificationSettingsStore);

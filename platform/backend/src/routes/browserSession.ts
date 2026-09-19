@@ -21,7 +21,12 @@ function isValidBrowserSessionRecord(input: BrowserSessionRecord | undefined): i
     Number.isFinite(input.durationMs) &&
     input.durationMs >= 0 &&
     input.source === "extension" &&
-    (input.endReason === "browser-closed" || input.endReason === "startup-recovery" || input.endReason === "manual-reset")
+    (
+      input.endReason === "browser-closed" ||
+      input.endReason === "startup-recovery" ||
+      input.endReason === "manual-reset" ||
+      input.endReason === "system-inactive"
+    )
   );
 }
 

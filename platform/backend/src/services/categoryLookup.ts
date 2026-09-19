@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { NormalizedCategory } from "../types/activity.js";
+import { LogisticRegressionClassifier } from "./logisticRegressionClassifier.js";
 
 interface CategoryLookupEntry {
   rawCategory: string;
@@ -257,12 +258,17 @@ export interface CategoryMatch {
   matchedDomain: string | null;
   rawCategory: string | null;
   normalizedCategory: NormalizedCategory | null;
+  confidence?: number;
+  source?: "manual" | "heuristic" | "lookup" | "ml-logreg";
 }
 
 export class CategoryLookupService {
   private readonly entries = new Map<string, CategoryLookupEntry>();
+  private readonly mlClassifier: LogisticRegressionClassifier;
 
-  constructor(private readonly lookupPath: string) {}
+  constructor(private readonly lookupPath: string, mlModelPath: string) {
+    this.mlClassifier = new LogisticRegressionClassifier(mlModelPath);
+  }
 
   async init(): Promise<void> {
     try {
@@ -274,6 +280,8 @@ export class CategoryLookupService {
     } catch {
       this.entries.clear();
     }
+
+    await this.mlClassifier.init();
   }
 
   matchDomain(domain: string): CategoryMatch {
@@ -294,7 +302,9 @@ export class CategoryLookupService {
         domain: normalizedDomain,
         matchedDomain: normalizedDomain,
         rawCategory: manualOverride.rawCategory,
-        normalizedCategory: manualOverride.normalizedCategory
+        normalizedCategory: manualOverride.normalizedCategory,
+        confidence: 1,
+        source: "manual"
       };
     }
 
@@ -304,7 +314,9 @@ export class CategoryLookupService {
         domain: normalizedDomain,
         matchedDomain: normalizedDomain,
         rawCategory: heuristicMatch.rawCategory,
-        normalizedCategory: heuristicMatch.normalizedCategory
+        normalizedCategory: heuristicMatch.normalizedCategory,
+        confidence: 1,
+        source: "heuristic"
       };
     }
 
@@ -315,9 +327,23 @@ export class CategoryLookupService {
           domain: normalizedDomain,
           matchedDomain: candidate,
           rawCategory: entry.rawCategory,
-          normalizedCategory: entry.normalizedCategory
+          normalizedCategory: entry.normalizedCategory,
+          confidence: 1,
+          source: "lookup"
         };
       }
+    }
+
+    const mlPrediction = this.mlClassifier.predict(normalizedDomain);
+    if (mlPrediction) {
+      return {
+        domain: normalizedDomain,
+        matchedDomain: null,
+        rawCategory: "ML Logistic Regression Baseline",
+        normalizedCategory: mlPrediction.normalizedCategory,
+        confidence: mlPrediction.confidence,
+        source: mlPrediction.source
+      };
     }
 
     return {

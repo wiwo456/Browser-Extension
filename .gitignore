@@ -1,7 +1,25 @@
 node_modules/
 .DS_Store
 datasets/
-platform/backend/data/domain-category-lookup.json
+# Generated build output
+extension/dist/
+platform/backend/dist/
+platform/dashboard/dist/
+
+# Runtime and generated backend data (may contain personal browsing data)
+platform/backend/data/activities.json
+platform/backend/data/browser-sessions.json
+platform/backend/data/focus-rules.json
 platform/backend/data/notification-settings.json
+platform/backend/data/domain-category-lookup.json
+platform/backend/data/category-dataset-summary.json
+platform/backend/data/ml-domain-logreg-model.json
+
+# Local tool/editor files
+.vite/
+coverage/
+*.log
+.idea/
+.vscode/
 *.env
 !.env.example
